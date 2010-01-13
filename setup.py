@@ -111,13 +111,13 @@ Python C bindings for 4store""",
 	keywords='4store rdf triplestore',
 	author='William Waites',
 	author_email='wwaites_at_gmail.com',
-	url='http://pypi.python.org/pypi/py4s',
+	url='http://github.com/wwaites/py4s',
 	license='GPL',
 	packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
 	include_package_data=True,
 	zip_safe=False,
 	install_requires=[
-	# -*- Extra requirements: -*-
+		"nose",
 	],
 	entry_points="""
 	# -*- Entry points: -*-
