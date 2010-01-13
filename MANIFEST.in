@@ -1,0 +1,9 @@
+include COPYING
+include README
+include MANIFEST.in
+include setup.py
+include setup.cfg
+include py4s/*.py
+include tests/*.py
+include py4s_helpers.c
+prune src

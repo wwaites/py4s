@@ -1,0 +1,12 @@
+Experimental bindings and C client library for 4store by
+Copyright 2009 William Waites <wwaites@gmail.com>. Distributed
+as with 4store under terms of the GNU GPL v3. See the file 
+COPYING for details.
+
+See the directory tests for some examples of usage. They can
+be run with
+
+	python setup.py nosetests --verbosity=2 -s
+
+Make sure you have an instance of the 4store backend running
+serving a KB called py4s_test.
