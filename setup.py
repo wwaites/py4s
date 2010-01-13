@@ -118,6 +118,7 @@ Python C bindings for 4store""",
 	zip_safe=False,
 	install_requires=[
 		"nose",
+		"rdflib",
 	],
 	entry_points="""
 	# -*- Entry points: -*-
