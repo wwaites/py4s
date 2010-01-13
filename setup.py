@@ -35,7 +35,6 @@ def get_includes(pkg):
 	includes = fp.read().strip().replace("-I", "").split(" ")
 	fp.close()
 	return includes
-extra_includes = get_includes("glib-2.0") + get_includes("raptor") + get_includes("rasqal")
 def get_libs(pkg):
 	fp = os.popen("pkg-config --libs-only-L %s" % (pkg,))
 	libdirs = fp.read().strip().replace("-L", "").split(" ")
@@ -50,6 +49,8 @@ def uniqify(l):
 		if not e or e in seen: continue
 		seen.append(e)
 	return seen
+extra_includes = get_includes("glib-2.0") + get_includes("raptor") + get_includes("rasqal")
+extra_includes = uniqify(extra_includes)
 glib_dirs, glib_libs = get_libs("glib-2.0")
 raptor_dirs, raptor_libs = get_libs("raptor")
 rasqal_dirs, rasqal_libs = get_libs("rasqal")
