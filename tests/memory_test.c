@@ -21,7 +21,7 @@ cc -o memory_test memory_test.o build/lib.linux-x86_64-2.6/libpy4s.a -lrasqal -l
 #endif
 
 #define ASK_QUERY "ASK WHERE { ?s ?p ?o }"
-#define SELECT_QUERY "SELECT * WHERE { ?s a ?o } LIMIT 10"
+#define SELECT_QUERY "SELECT * WHERE { ?s a ?o } LIMIT 1"
 #define QUERY SELECT_QUERY
 
 int main(int argc, char *argv[]) {
