@@ -23,7 +23,7 @@ del cc
 FS_OPEN_HINT_RW = 0
 FS_OPEN_HINT_RO = 1
 
-MEMORY_DEBUG = 1
+MEMORY_DEBUG = 0
 
 def debug_alloc(f):
 	if not MEMORY_DEBUG:

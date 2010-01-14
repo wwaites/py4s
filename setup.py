@@ -57,7 +57,7 @@ rasqal_dirs, rasqal_libs = get_libs("rasqal")
 library_dirs = uniqify(glib_dirs + rasqal_dirs + raptor_dirs)
 libraries = uniqify(glib_libs + rasqal_libs + raptor_libs)
 
-define_macros=[("DEBUG_RV_ALLOC", 1), ("DEBUG_MERGE", 2)]
+define_macros=[]
 
 if not os.system("pkg-config rasqal --atleast-version=0.9.14"):
 	define_macros.append(("HAVE_LAQRS", 1))
