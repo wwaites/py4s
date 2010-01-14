@@ -1,11 +1,6 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <frontend/query.h>
-#ifdef LINUX
-#include <mcheck.h>
-#endif
-
 /*
+
+Test program to reproduce memory leak in 4store client code.
 
 Compile on OSX:
 
@@ -18,6 +13,16 @@ cc -g -Isrc -I/usr/include/rasqal `pkg-config glib-2.0 --cflags-only-I` -c tests
 cc -o memory_test memory_test.o build/lib.linux-x86_64-2.6/libpy4s.a -lrasqal -lraptor -lglib-2.0
 
  */
+#include <stdio.h>
+#include <stdlib.h>
+#include <frontend/query.h>
+#ifdef LINUX
+#include <mcheck.h>
+#endif
+
+#define ASK_QUERY "ASK WHERE { ?s ?p ?o }"
+#define SELECT_QUERY "SELECT * WHERE { ?s a ?o } LIMIT 10"
+#define QUERY SELECT_QUERY
 
 int main(int argc, char *argv[]) {
 	fsp_link *link;
@@ -39,7 +44,7 @@ int main(int argc, char *argv[]) {
 	qs = fs_query_init(link);
 	for (i=0;i<atoi(argv[1]);i++) {
 		//printf("--------- %d ----------\n", i);
-		qr = fs_query_execute(qs, link, bu, "ASK WHERE { ?s ?p ?o }", 0, 3, 0);
+		qr = fs_query_execute(qs, link, bu, QUERY, 0, 3, 0);
 		fs_query_free(qr);
 		fs_query_cache_flush(qs, 0);
 	}
