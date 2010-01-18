@@ -183,8 +183,8 @@ raptor_new_uri.restype = RAPTOR_URI
 raptor_new_uri = debug_alloc(raptor_new_uri)
 
 class QueryResults(object):
-	def __init__(self, qs, link, graph_uri, query, *av, **kw):
-		self.qr = fs_query_execute(qs, link, graph_uri, query, *av, **kw)
+	def __init__(self, qs, link, graph_uri, query, flags, opt_level, soft_limit):
+		self.qr = fs_query_execute(qs, link, graph_uri, query, flags, opt_level, soft_limit)
 		if self.qr.errors():
 			print "#QUERY:\n", query
 			self.qr.warnings()
@@ -232,7 +232,6 @@ class FourStore(object):
 
 		self.flags = 0
 		self.opt_level = 3
-		self.soft_limit = 0
 		self.verbosity = 1
 		self.unsafe = 1
 
@@ -262,7 +261,7 @@ class FourStore(object):
 			self.__models__[model_uri] = uri
 		return uri
 
-	def query(self, query, graph_uri="local:", initNs=None):
+	def query(self, query, graph_uri="local:", initNs=None, opt_level=3, soft_limit=0):
 		if MEMORY_DEBUG: print "----------- QUERY -----------"
 		graph_uri = self.model_uri(graph_uri)
 		#self.query_state = fs_query_init(self.link)
@@ -271,7 +270,7 @@ class FourStore(object):
 			query = "\n".join(prefixes) + "\n" + query
 		query = query.encode("iso-8859-1")
 		return QueryResults(self.query_state, self.link, graph_uri,
-			query, self.flags, self.opt_level, self.soft_limit)
+			query, self.flags, opt_level, soft_limit)
 
 	def add(self, triple, graph_uri="local:"):
 		if MEMORY_DEBUG: print "------------ ADD ------------"
