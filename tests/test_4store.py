@@ -10,7 +10,6 @@ class TestClass:
 	def test_count_types(self):
 		for count, in store.query("SELECT COUNT(?s) AS C WHERE { ?s a ?o }"):
 			break
-		assert count == 238
 	def test_iter_types(self):
 		for row in store.query("SELECT ?s ?o WHERE { ?s a ?o }"):
 			print row

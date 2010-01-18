@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages, Library
 import sys, os, re
 
-version = '0.1'
+version = '0.2'
 
 try:
 	os.stat("src")
@@ -19,6 +19,11 @@ py4s directory.
 Recommend you use the git HEAD version of 4store, available from
 
 	git://github.com/garlik/4store.git
+
+Or the experimental branch with support for multiple simultaneous
+clients from
+
+	git://github.com/wwaites/4store.git
 
 and remember use the latest version of rasqal and configure it
 with
