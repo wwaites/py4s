@@ -6,22 +6,27 @@ except ImportError:
 	from rdflib import URIRef, RDF
 
 store = FourStore("py4s_test")
+store.connect()
 class TestClass:
 	def test_count_types(self):
-		for count, in store.query("SELECT COUNT(?s) AS C WHERE { ?s a ?o }"):
+		cursor = store.cursor()
+		for count, in cursor.query("SELECT COUNT(?s) AS C WHERE { ?s a ?o }"):
 			break
 	def test_iter_types(self):
-		for row in store.query("SELECT ?s ?o WHERE { ?s a ?o }"):
+		cursor = store.cursor()
+		for row in cursor.query("SELECT ?s ?o WHERE { ?s a ?o }"):
 			print row
 	def test_add_triple(self):
+		cursor = store.cursor()
 		s = (
 			URIRef("http://irl.styx.org/"),
 			RDF.type,
 			URIRef("http://irl.styx.org/Thing")
 		)
-		store.add(s)
+		cursor.add(s)
 	def test_delete_graph(self):
-		store.delete_model()
+		cursor = store.cursor()
+		cursor.delete_model()
 
 if __name__ == '__main__':
 	t = TestClass()

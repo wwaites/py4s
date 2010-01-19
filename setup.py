@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages, Library
 import sys, os, re
 
-version = '0.2'
+version = '0.3'
 
 try:
 	os.stat("src")

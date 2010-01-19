@@ -204,6 +204,104 @@ class QueryResults(object):
 				break
 			yield [row[i].to_node() for i in range(ncols)]
 
+def n3(statement):
+	t = map(lambda x: x.n3(), statement)
+	return " ".join(t).encode("iso-8859-1")
+
+class Cursor(object):
+	fs_import_stream_start = libfs["fs_import_stream_start"]
+	fs_import_stream_data = libfs["fs_import_stream_data"]
+	fs_import_stream_finish = libfs["fs_import_stream_finish"]
+	fsp_delete_model_all = libfs["fsp_delete_model_all"]
+	def __init__(self, store):
+		if not store.link:
+			raise FourStoreError("not connected")
+		self.store = store
+		self.query_state = fs_query_init(store.link)
+		self.flags = 0
+		self.in_transaction = False
+
+        def transaction(self, graph_uri="local:"):
+		content_type="application/x-turtle"
+		if not self.store.link:
+			raise FourStoreError("not connected")
+		if self.in_transaction:
+			raise FourStoreError("already in transaction")
+		graph_uri = self.store.model_uri(graph_uri)
+		has_o_index = "no_o_index" not in self.store.link.features
+		self.import_count = c_int(0)
+		print "starting transaction", self.store.link, graph_uri, content_type, has_o_index
+		ret = self.fs_import_stream_start(self.store.link, graph_uri, content_type,
+					has_o_index, byref(self.import_count))
+		print "in transaction now", ret
+		self.in_transaction = True
+
+	def commit(self):
+		print "closing transaction"
+		if not self.store.link:
+			raise FourStoreError("not connected")
+		if not self.in_transaction:
+			raise FourStoreError("no transaction")
+		error_count = c_int(0)
+		self.fs_import_stream_finish(self.store.link, byref(self.import_count), byref(error_count))
+		self.in_transaction = False
+		self.query_state.flush()
+		return self.import_count.value, error_count.value
+
+	def _import_data(self, data):
+		print data
+		if not self.store.link:
+			raise FourStoreError("not connected")
+		self.fs_import_stream_data(self.store.link, data, len(data))
+
+	def query(self, query, graph_uri="local:", initNs=None, opt_level=3, soft_limit=0):
+		if not self.store.link:
+			raise FourStoreError("not connected")
+		if MEMORY_DEBUG: print "----------- QUERY -----------"
+		graph_uri = self.store.model_uri(graph_uri)
+		#self.query_state = fs_query_init(self.link)
+		if initNs:
+			prefixes = map(lambda x: "PREFIX %s: <%s>" % (x, initNs[x]), initNs)
+			query = "\n".join(prefixes) + "\n" + query
+		query = query.encode("iso-8859-1")
+		return QueryResults(self.query_state, self.store.link, graph_uri,
+			query, self.flags, opt_level, soft_limit)
+
+	def add(self, statement, graph_uri="local:"):
+		if MEMORY_DEBUG: print "------------ ADD ------------"
+		n = n3(statement)
+		q = "ASK WHERE { " + n + " }"
+		if not self.query(q, graph_uri):
+			if not self.in_transaction:
+				self.transaction()
+				transaction = True
+			else:
+				transaction = False
+			self._import_data(n + " .")
+			if transaction:
+				self.commit()
+
+	def add_graph(self, graph):
+		if not self.in_transaction:
+			self.transaction()
+			transaction = True
+		else:
+			transaction = False
+
+		print graph.identifier
+
+		if transaction:
+			self.commit()
+
+	def delete_model(self, graph_uri="local:"):
+		if not self.store.link:
+			raise FourStoreError("not connected")
+		mvec = fs_rid_vector_new(0)
+		uri_hash = self.store.fs_hash_uri(graph_uri)
+		mvec.append(uri_hash)
+		self.fsp_delete_model_all(self.store.link, mvec)
+		self.query_state.flush()
+
 class FourStoreError(Exception):
 	"4S Error"
 
@@ -212,30 +310,23 @@ class FourStore(object):
 	fsp_hash_type = libfs["fsp_hash_type"]
 	fs_hash_init = libfs["fs_hash_init"]
 	#fs_update = libfs["fs_update"]
-	fs_import_stream_start = libfs["fs_import_stream_start"]
-	fs_import_stream_data = libfs["fs_import_stream_data"]
-	fs_import_stream_finish = libfs["fs_import_stream_finish"]
-	fsp_delete_model_all = libfs["fsp_delete_model_all"]
 	raptor_init = libraptor["raptor_init"]
 	raptor_finish = libraptor["raptor_finish"]
 
-	__stores__ = {}
 	__models__ = {}
+	raptor_init_done = False
 
 	def __init__(self, store, password=None, mode=FS_OPEN_HINT_RW):
-		if store in self.__stores__:
-			raise FourStoreError("Only one instance of each store may be used at a time")
-		if not self.__stores__:
+		if not self.raptor_init_done:
 			self.raptor_init()
-		self.__stores__[store] = True
+			self.raptor_init_done = True
 		self.store = store
+		self.password = password
+		self.mode = mode
+		self.link = None
 
-		self.flags = 0
-		self.opt_level = 3
-		self.verbosity = 1
-		self.unsafe = 1
-
-		self.link = fsp_open_link(store, password, mode)
+        def connect(self):
+		self.link = fsp_open_link(self.store, self.password, self.mode)
 
 		self.fs_hash_init(self.fsp_hash_type(self.link))
 		### very kludgy. got to be a better way
@@ -245,14 +336,10 @@ class FourStore(object):
 				self.fs_hash_uri = libfs[fname]
 				break
 		
-		self.query_state = fs_query_init(self.link)
-
 		self.fsp_no_op(self.link, 0)
 
-	def __del__(self):
-		del self.__stores__[self.store]
-		if not self.__stores__:
-			self.raptor_finish()
+	def close(self):
+		self.link = None
 
 	def model_uri(self, model_uri):
 		uri = self.__models__.get(model_uri, None)
@@ -261,41 +348,5 @@ class FourStore(object):
 			self.__models__[model_uri] = uri
 		return uri
 
-	def query(self, query, graph_uri="local:", initNs=None, opt_level=3, soft_limit=0):
-		if MEMORY_DEBUG: print "----------- QUERY -----------"
-		graph_uri = self.model_uri(graph_uri)
-		#self.query_state = fs_query_init(self.link)
-		if initNs:
-			prefixes = map(lambda x: "PREFIX %s: <%s>" % (x, initNs[x]), initNs)
-			query = "\n".join(prefixes) + "\n" + query
-		query = query.encode("iso-8859-1")
-		return QueryResults(self.query_state, self.link, graph_uri,
-			query, self.flags, opt_level, soft_limit)
-
-	def add(self, triple, graph_uri="local:"):
-		if MEMORY_DEBUG: print "------------ ADD ------------"
-		turtle = map(lambda x: x.n3().encode("iso-8859-1"), triple)
-		q = "ASK WHERE { " + " ".join(turtle) + " }"
-		if not self.query(q, graph_uri):
-			data = " ".join(turtle) + " ."
-			self.import_data(data, graph_uri=graph_uri)
-
-	def import_data(self, data, graph_uri="local:", content_type="application/x-turtle"):
-		print data
-		graph_uri = self.model_uri(graph_uri)
-		has_o_index = "no_o_index" not in self.link.features
-		import_count = c_int(0)
-		error_count = c_int(0)
-		self.fs_import_stream_start(self.link, graph_uri, content_type,
-					has_o_index, byref(import_count))
-		self.fs_import_stream_data(self.link, data, len(data))
-		self.fs_import_stream_finish(self.link, byref(import_count), byref(error_count))
-		#print "# IMPORT", import_count, "ERRORS", error_count
-		self.query_state.flush()
-
-	def delete_model(self, graph_uri="local:"):
-		mvec = fs_rid_vector_new(0)
-		uri_hash = self.fs_hash_uri(graph_uri)
-		mvec.append(uri_hash)
-		self.fsp_delete_model_all(self.link, mvec)
-		self.query_state.flush()
+	def cursor(self):
+		return Cursor(self)
