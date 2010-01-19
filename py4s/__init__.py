@@ -155,6 +155,9 @@ fsp_open_link = libfs["fsp_open_link"]
 fsp_open_link.restype = FS_LINK
 fsp_open_link = debug_alloc(fsp_open_link)
 
+class FS_RID(c_ulonglong):
+	pass
+FS_RID_NULL = FS_RID(0x8000000000000000)
 class FS_RID_VECTOR(c_void_p):
 	fs_rid_vector_append = libfs["fs_rid_vector_append"]
 	fs_rid_vector_free = libfs["fs_rid_vector_free"]
@@ -166,6 +169,7 @@ class FS_RID_VECTOR(c_void_p):
 fs_rid_vector_new = libfs["fs_rid_vector_new"]
 fs_rid_vector_new.restype = FS_RID_VECTOR
 fs_rid_vector_new = debug_alloc(fs_rid_vector_new)
+FS_RID_VECTOR.fs_rid_vector_append.argtypes = [FS_RID_VECTOR, FS_RID]
 
 class RAPTOR_URI(c_void_p):
 	raptor_free_uri = libraptor["raptor_free_uri"]
@@ -183,8 +187,8 @@ raptor_new_uri.restype = RAPTOR_URI
 raptor_new_uri = debug_alloc(raptor_new_uri)
 
 class QueryResults(object):
-	def __init__(self, qs, link, graph_uri, query, flags, opt_level, soft_limit):
-		self.qr = fs_query_execute(qs, link, graph_uri, query, flags, opt_level, soft_limit)
+	def __init__(self, qs, link, model_uri, query, flags, opt_level, soft_limit):
+		self.qr = fs_query_execute(qs, link, model_uri, query, flags, opt_level, soft_limit)
 		if self.qr.errors():
 			print "#QUERY:\n", query
 			self.qr.warnings()
@@ -210,6 +214,7 @@ def n3(statement):
 
 class Cursor(object):
 	fs_import_stream_start = libfs["fs_import_stream_start"]
+	fs_import_stream_start.argtypes = [FS_LINK, c_char_p, c_char_p, c_int, POINTER(c_int)]
 	fs_import_stream_data = libfs["fs_import_stream_data"]
 	fs_import_stream_finish = libfs["fs_import_stream_finish"]
 	fsp_delete_model_all = libfs["fsp_delete_model_all"]
@@ -221,23 +226,19 @@ class Cursor(object):
 		self.flags = 0
 		self.in_transaction = False
 
-        def transaction(self, graph_uri="local:"):
+        def transaction(self, model_uri="local:"):
 		content_type="application/x-turtle"
 		if not self.store.link:
 			raise FourStoreError("not connected")
 		if self.in_transaction:
 			raise FourStoreError("already in transaction")
-		graph_uri = self.store.model_uri(graph_uri)
 		has_o_index = "no_o_index" not in self.store.link.features
 		self.import_count = c_int(0)
-		print "starting transaction", self.store.link, graph_uri, content_type, has_o_index
-		ret = self.fs_import_stream_start(self.store.link, graph_uri, content_type,
+		self.fs_import_stream_start(self.store.link, model_uri, content_type,
 					has_o_index, byref(self.import_count))
-		print "in transaction now", ret
 		self.in_transaction = True
 
 	def commit(self):
-		print "closing transaction"
 		if not self.store.link:
 			raise FourStoreError("not connected")
 		if not self.in_transaction:
@@ -246,34 +247,35 @@ class Cursor(object):
 		self.fs_import_stream_finish(self.store.link, byref(self.import_count), byref(error_count))
 		self.in_transaction = False
 		self.query_state.flush()
+		#print "IMPORTED", self.import_count.value, "ERRORS", error_count.value
 		return self.import_count.value, error_count.value
 
 	def _import_data(self, data):
-		print data
+		#print "IMPORTING", data
 		if not self.store.link:
 			raise FourStoreError("not connected")
 		self.fs_import_stream_data(self.store.link, data, len(data))
 
-	def query(self, query, graph_uri="local:", initNs=None, opt_level=3, soft_limit=0):
+	def query(self, query, model_uri="local:", initNs=None, opt_level=3, soft_limit=0):
 		if not self.store.link:
 			raise FourStoreError("not connected")
 		if MEMORY_DEBUG: print "----------- QUERY -----------"
-		graph_uri = self.store.model_uri(graph_uri)
+		model_uri = self.store.model_uri(model_uri)
 		#self.query_state = fs_query_init(self.link)
 		if initNs:
 			prefixes = map(lambda x: "PREFIX %s: <%s>" % (x, initNs[x]), initNs)
 			query = "\n".join(prefixes) + "\n" + query
 		query = query.encode("iso-8859-1")
-		return QueryResults(self.query_state, self.store.link, graph_uri,
+		return QueryResults(self.query_state, self.store.link, model_uri,
 			query, self.flags, opt_level, soft_limit)
 
-	def add(self, statement, graph_uri="local:"):
+	def add(self, statement, model_uri="local:"):
 		if MEMORY_DEBUG: print "------------ ADD ------------"
 		n = n3(statement)
-		q = "ASK WHERE { " + n + " }"
-		if not self.query(q, graph_uri):
+		q = "ASK WHERE { GRAPH <%s> " % model_uri + "{ " + n + " } }"
+		if not self.query(q, model_uri):
 			if not self.in_transaction:
-				self.transaction()
+				self.transaction(model_uri)
 				transaction = True
 			else:
 				transaction = False
@@ -281,23 +283,33 @@ class Cursor(object):
 			if transaction:
 				self.commit()
 
-	def add_graph(self, graph):
+	def add_model(self, model):
+		"""
+		model should be an RDFLib Graph instance and should have
+		the identifier set to something reasonable
+		"""
 		if not self.in_transaction:
-			self.transaction()
+			self.transaction(model.identifier)
 			transaction = True
 		else:
 			transaction = False
 
-		print graph.identifier
+		for statement in model.triples((None, None, None)):
+			self.add(statement, model.identifier)
 
 		if transaction:
 			self.commit()
 
-	def delete_model(self, graph_uri="local:"):
+	def delete_model(self, model_uri=None, all=False):
 		if not self.store.link:
 			raise FourStoreError("not connected")
+		if not model_uri and not all:
+			raise FourStoreError("nothing to delete")
 		mvec = fs_rid_vector_new(0)
-		uri_hash = self.store.fs_hash_uri(graph_uri)
+		if model_uri:
+			uri_hash = self.store.fs_hash_uri(model_uri)
+		else:
+			uri_hash = FS_RID_NULL
 		mvec.append(uri_hash)
 		self.fsp_delete_model_all(self.store.link, mvec)
 		self.query_state.flush()
@@ -334,6 +346,8 @@ class FourStore(object):
 		for fname in "fs_hash_uri_md5", "fs_hash_uri_umac", "fs_hash_uri_crc64":
 			if fhi == c_int.in_dll(libfs, fname).value:
 				self.fs_hash_uri = libfs[fname]
+				self.fs_hash_uri.argtypes = [c_char_p]
+				self.fs_hash_uri.restype = FS_RID
 				break
 		
 		self.fsp_no_op(self.link, 0)
