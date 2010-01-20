@@ -90,7 +90,7 @@ class FS_NODE(Structure):
 		if self.type == self.FS_TYPE_BNODE:
 			return BNode(self.lex)
 		if self.type == self.FS_TYPE_NONE:
-			return Identifier(self.name)
+			return self.name
 		raise TypeError("%s" % (self,))
 
 class QUERY(c_void_p):
@@ -194,19 +194,32 @@ class QueryResults(object):
 			self.qr.warnings()
 			raise FourStoreError("Bad Query")
 		## have to read the header, otherwise bus error
-		self.qr.header()
+		self.__ncols__ = self.qr.columns()
+		header = self.qr.header()
+		self.bindings = dict([(header[i].to_node(), i) for i in range(self.__ncols__)])
 	def __nonzero__(self):
 		if not hasattr(self, "__boolean__"):
 			self.__boolean__ = bool(self.qr)
 		return self.__boolean__
 	def __iter__(self):
-		ncols = self.qr.columns()
 		while True:
-			row = self.qr.fetchrow()
+			row = self.fetchone()
 			if not row:
-				#raise FourStoreError("hey!")
 				break
-			yield [row[i].to_node() for i in range(ncols)]
+			yield row
+	def fetchone(self):
+		row = self.qr.fetchrow()
+		if not row: return None
+		class DictList(list):
+			def __getitem__(dl, key):
+				if isinstance(key, int):
+					return super(DictList, dl).__getitem__(key)
+				else:
+					return super(DictList, dl).__getitem__(self.bindings[key])
+		return DictList([row[i].to_node() for i in range(self.__ncols__)])
+
+	def fetchall(self):
+		return list(self)
 
 def n3(statement):
 	t = map(lambda x: x.n3(), statement)
@@ -256,7 +269,7 @@ class Cursor(object):
 			raise FourStoreError("not connected")
 		self.fs_import_stream_data(self.store.link, data, len(data))
 
-	def query(self, query, model_uri="local:", initNs=None, opt_level=3, soft_limit=0):
+	def execute(self, query, model_uri="local:", initNs=None, opt_level=3, soft_limit=0):
 		if not self.store.link:
 			raise FourStoreError("not connected")
 		if MEMORY_DEBUG: print "----------- QUERY -----------"
@@ -273,7 +286,7 @@ class Cursor(object):
 		if MEMORY_DEBUG: print "------------ ADD ------------"
 		n = n3(statement)
 		q = "ASK WHERE { GRAPH <%s> " % model_uri + "{ " + n + " } }"
-		if not self.query(q, model_uri):
+		if not self.execute(q, model_uri):
 			if not self.in_transaction:
 				self.transaction(model_uri)
 				transaction = True
@@ -364,3 +377,37 @@ class FourStore(object):
 
 	def cursor(self):
 		return Cursor(self)
+
+	### API conformant to RDFLib
+	def query(self, *av, **kw):
+		return self.cursor().execute(*av, **kw)
+
+	def triples(self, (s, p, o), *av, **kw):
+		bindings = []
+		filter = []
+		if s is None:
+			bindings.append("?s")
+			filter.append("?s")
+		else:
+			filter.append(s.n3())
+		if p is None:
+			bindings.append("?p")
+			filter.append("?p")
+		else:
+			filter.append(p.n3())
+		if o is None:
+			bindings.append("?o")
+			filter.append("?o")
+		else:
+			filter.append(o.n3())
+		query = "SELECT " + " ".join(bindings) + \
+			" WHERE { " + " ".join(filter) + " }"
+		for result in self.query(query, *av, **kw):
+			statement = []
+			if s is None: statement.append(result["s"])
+			else: statement.append(s)
+			if p is None: statement.append(result["p"])
+			else: statement.append(p)
+			if o is None: statement.append(result["o"])
+			else: statement.append(o)
+			yield tuple(statement)
