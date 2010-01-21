@@ -13,10 +13,10 @@ from distutils import ccompiler
 cc = ccompiler.new_compiler()
 heredir = os.path.dirname(__file__)
 libfs_dir, unused = os.path.split(heredir)
-libfs_path = os.path.join(libfs_dir, cc.library_filename("py4s", "dylib"))
+libfs_path = os.path.join(libfs_dir, cc.library_filename("py4s", "shared"))
 
 libfs = CDLL(libfs_path)
-libraptor = CDLL(cc.library_filename("raptor", "dylib"))
+libraptor = CDLL(cc.library_filename("raptor", "shared"))
 #librasqal = CDLL(cc.library_filename("rasqal", "dylib"))
 del cc
 
@@ -84,7 +84,7 @@ class FS_NODE(Structure):
 					datatype = self.datatypes[self.dt] = URIRef(self.dt)
 				kw["datatype"] = datatype
 			if self.lang:
-				kw["language"] = self.lang
+				kw["lang"] = self.lang
 			n = Literal(self.lex, **kw)
 			return n
 		if self.type == self.FS_TYPE_BNODE:
