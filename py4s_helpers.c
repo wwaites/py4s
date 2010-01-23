@@ -1,10 +1,14 @@
 #include <stdio.h>
 #include <frontend/query.h>
+#include "py4s_helpers.h"
 
-void py4s_print_warnings(fs_query *);
-int py4s_query_ask(fs_query *);
-
-void py4s_print_warnings(fs_query *q) {
+GSList *py4s_query_warnings(fs_query *q) {
+    /* must free at the caller! */
+    GSList *warnings = q->warnings;
+    q->warnings = NULL;
+    return warnings;
+}
+/*
     if (q->warnings) {
         GSList *it;
         for (it = q->warnings; it; it = it->next) {
@@ -18,7 +22,7 @@ void py4s_print_warnings(fs_query *q) {
         q->warnings = NULL;
     }
 }
-
+*/
 
 int py4s_query_ask(fs_query *q) {
 	return q->ask;

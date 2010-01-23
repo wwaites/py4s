@@ -1,4 +1,6 @@
-from setuptools import setup, find_packages, Library
+from distutils.core import setup
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
 import sys, os, re
 
 version = '0.3'
@@ -74,9 +76,10 @@ try:
 except OSError:
 	pass
 
-libpy4s = Library(
+libpy4s = Extension(
         name="py4s",
         sources=[
+		"py4s.pyx",
 		"src/common/4s-common.c",
 		"src/common/4s-client.c",
 		"src/common/4s-mdns.c",
@@ -119,15 +122,7 @@ Python C bindings for 4store""",
 	author_email='wwaites_at_gmail.com',
 	url='http://github.com/wwaites/py4s',
 	license='GPL',
-	packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
-	include_package_data=True,
-	zip_safe=False,
-	install_requires=[
-		"nose",
-		"rdflib",
-	],
-	entry_points="""
-	# -*- Entry points: -*-
-	""",
+	packages=[],
+	cmdclass={'build_ext': build_ext},
 	ext_modules=[libpy4s],
 )
