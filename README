@@ -10,10 +10,13 @@ The branch at http://github.com/wwaites/4store has support
 for multiple clients but should be considered to be 
 bleeding edge code.
 
+Building this package requires Cython from
+http://www.cython.org
+
 See the directory tests for some examples of usage. They can
 be run with
 
-	python setup.py nosetests --verbosity=2 -s
+	nosetests --verbosity=2 -s
 
 Make sure you have an instance of the 4store backend running
 serving a KB called py4s_test.
