@@ -195,8 +195,8 @@ cdef class QueryResults:
 		return self
 	def __next__(self):
 		cdef fs_row *row = py4s.fs_query_fetch_row(self._qr)
-		if not row: raise StopIteration
 		self._get_warnings()
+		if not row: raise StopIteration
 		result = [_node(row[x]) for x in range(self._cols)]
 		return _ResultRow(self._bindings, result)
 	def __nonzero__(self):
