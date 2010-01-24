@@ -3,7 +3,9 @@ include README
 include MANIFEST.in
 include setup.py
 include setup.cfg
-include py4s/*.py
-include tests/*.py
+include py4s.pyx
+include py4s.pxd
 include py4s_helpers.c
+include py4s_helpers.h
+include tests/*.py
 prune src
