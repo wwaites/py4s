@@ -5,6 +5,7 @@ include setup.py
 include setup.cfg
 include py4s.pyx
 include py4s.pxd
+include rnode.pyx
 include py4s_helpers.c
 include py4s_helpers.h
 include tests/*.py
