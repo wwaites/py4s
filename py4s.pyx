@@ -166,32 +166,37 @@ class _ResultRow(list):
 
 cdef class QueryResults:
 	cdef py4s.fs_query *_qr
+	cdef Cursor _qs
 	cdef int _cols
 	cdef list _header
 	cdef dict _bindings
 	def __cinit__(self, Cursor qs):
+		self._qs = qs
 		self._qr = qs._qr
 		self._cols = py4s.fs_query_get_columns(self._qr)
 		cdef fs_row *h = py4s.fs_query_fetch_header_row(self._qr)
 		self._header = [(_node(h[x]), x) for x in range(self._cols)]
 		self._bindings = dict(self._header)
+		self._get_warnings()
+		if py4s.fs_query_errors(self._qr):
+			raise FourStoreError("Bad Query")
+	cdef _get_warnings(self):
 		cdef py4s.GSList *warnings = py4s.py4s_query_warnings(self._qr)
 		cdef py4s.GSList *w = warnings
 		while w:
-			qs.warnings.append(str(w.data))
+			self._qs.warnings.append(str(w.data))
 			w = w.next
 		if warnings:
 			g_slist_free(warnings)
-		if py4s.fs_query_errors(self._qr):
-			raise FourStoreError("Bad Query")
 	@property
-	def header(self):
+	def bindings(self):
 		return [x[0] for x in self._header]
 	def __iter__(self):
 		return self
 	def __next__(self):
 		cdef fs_row *row = py4s.fs_query_fetch_row(self._qr)
 		if not row: raise StopIteration
+		self._get_warnings()
 		result = [_node(row[x]) for x in range(self._cols)]
 		return _ResultRow(self._bindings, result)
 	def __nonzero__(self):
