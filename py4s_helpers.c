@@ -18,3 +18,6 @@ int py4s_query_bool(fs_query *q) {
 int py4s_query_construct(fs_query *q) {
 	return q->construct;
 }
+rasqal_query *py4s_query_rasqal_query(fs_query *q) {
+	return q->rq;
+}

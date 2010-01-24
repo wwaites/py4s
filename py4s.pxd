@@ -1,3 +1,58 @@
+cdef extern from "raptor.h":
+	ctypedef struct raptor_uri:
+		pass
+		
+	raptor_uri *raptor_new_uri(unsigned char *uri)
+	unsigned char *raptor_uri_as_string(raptor_uri *uri)
+
+cdef extern from "rasqal/rasqal.h":
+	ctypedef struct rasqal_query:
+		pass
+	ctypedef struct rasqal_variable:
+		void 		*vars_table
+		unsigned char *name
+	ctypedef enum rasqal_literal_type:
+		RASQAL_LITERAL_UNKNOWN
+		RASQAL_LITERAL_BLANK
+		RASQAL_LITERAL_URI
+		RASQAL_LITERAL_STRING
+		RASQAL_LITERAL_XSD_STRING
+		RASQAL_LITERAL_BOOLEAN
+		RASQAL_LITERAL_INTEGER
+		RASQAL_LITERAL_FLOAT
+		RASQAL_LITERAL_DOUBLE
+		RASQAL_LITERAL_DECIMAL
+		RASQAL_LITERAL_DATETIME
+		RASQAL_LITERAL_UDT
+		RASQAL_LITERAL_PATTERN
+		RASQAL_LITERAL_QNAME
+		RASQAL_LITERAL_VARIABLE
+		# enough to render literal type
+	ctypedef union value:
+			int		integer
+			double		floating
+			raptor_uri	*uri
+			rasqal_variable	*variable
+			void		*decimal ##XXX
+	ctypedef struct rasqal_literal:
+		void 			*world
+		int			usage
+		rasqal_literal_type	type
+		unsigned char 		*string
+		int			string_len
+		value			value
+		char 			*language
+		raptor_uri		*datatype
+		# enough to render literal
+
+	ctypedef struct rasqal_triple:
+		rasqal_literal *subject
+		rasqal_literal *predicate
+		rasqal_literal *object
+		rasqal_literal *origin
+	rasqal_triple *rasqal_query_get_construct_triple(rasqal_query *q, int i)
+	unsigned char *rasqal_literal_as_string(rasqal_literal *l)
+
 cdef extern from "common/datatypes.h":
 	ctypedef unsigned long long int fs_rid
 	ctypedef struct fs_rid_vector:
@@ -24,13 +79,6 @@ cdef extern from "common/4store.h":
 cdef extern from "common/hash.h":
 	void fs_hash_init(fsp_hash_enum type)
 	fs_rid (*fs_hash_uri)(char *str)
-
-cdef extern from "raptor.h":
-	ctypedef struct raptor_uri:
-		pass
-		
-	raptor_uri *raptor_new_uri(unsigned char *uri)
-	char *raptor_uri_as_string(raptor_uri *uri)
 
 cdef extern from "frontend/query.h":
 	ctypedef struct fs_query_state:
@@ -75,3 +123,5 @@ cdef extern from "py4s_helpers.h":
 	GSList *py4s_query_warnings(fs_query *q)
 	bint py4s_query_ask(fs_query *q)
 	bint py4s_query_bool(fs_query *q)
+	bint py4s_query_construct(fs_query *q)
+	rasqal_query *py4s_query_rasqal_query(fs_query *q)

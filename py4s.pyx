@@ -1,10 +1,13 @@
 cimport py4s
+
 try:
 	from rdflib.term import URIRef, Literal, BNode, Identifier
 	from rdflib.graph import Graph
 except ImportError:
 	from rdflib import URIRef, Literal, BNode, Identifier
 	from rdflib.Graph import Graph
+
+include "rnode.pyx"
 
 class FourStoreError(Exception):
 	pass
@@ -191,13 +194,56 @@ cdef class QueryResults:
 	@property
 	def bindings(self):
 		return [x[0] for x in self._header]
+
+	def construct(self):
+		if py4s.py4s_query_construct(self._qr):
+			g = Graph()
+			map(g.add, self)
+			return g
+
 	def __iter__(self):
 		return self
+
 	def __next__(self):
-		cdef fs_row *row = py4s.fs_query_fetch_row(self._qr)
+		if py4s.py4s_query_construct(self._qr):
+			return self._construct_triple()
+		else:
+			return self._fetch_row()
+
+	cdef _fetch_row(self):
+		cdef fs_row *row
+		row = py4s.fs_query_fetch_row(self._qr)
 		self._get_warnings()
 		if not row: raise StopIteration
 		result = [_node(row[x]) for x in range(self._cols)]
 		return _ResultRow(self._bindings, result)
+
+	cdef fs_row *_construct_row
+	cdef py4s.rasqal_query *_construct_rasqal_query
+	cdef int _construct_triple_index
+	cdef _construct_triple(self):
+		cdef py4s.rasqal_triple *t
+		if not self._construct_row:
+			self._construct_row = py4s.fs_query_fetch_row(self._qr)
+			self._get_warnings()
+			if not self._construct_row: raise StopIteration
+			self._construct_rasqal_query = \
+				py4s.py4s_query_rasqal_query(self._qr)
+			self._construct_triple_index = 0
+		t = py4s.rasqal_query_get_construct_triple(
+			self._construct_rasqal_query,
+			self._construct_triple_index
+		)
+		if not t:
+			self._construct_row = NULL
+			return self._construct_triple() ## next row
+		else:
+			self._construct_triple_index += 1
+			return (
+				py4s._rnode(self._bindings, self._construct_row, t.subject),
+				py4s._rnode(self._bindings, self._construct_row, t.predicate),
+				py4s._rnode(self._bindings, self._construct_row, t.object),
+			)
+
 	def __nonzero__(self):
 		return py4s.py4s_query_bool(self._qr)
