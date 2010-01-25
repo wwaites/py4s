@@ -42,7 +42,7 @@ cdef class FourStore:
 	def query(self, *av, **kw):
 		return self.cursor.query(*av, **kw)
 
-def _n3(s):
+cdef _n3(s):
 	return " ".join([x.n3() for x in s])
 
 cdef class Cursor:
@@ -76,9 +76,14 @@ cdef class Cursor:
 				prefixes.append("PREFIX %s: <%s>" % (x, initNs[x]))
 			query = "\n".join(prefixes) + "\n" + query
 		self.warnings = []
+
+		# silly hoop for unicode data
+		py_uquery = query.encode("UTF-8")
+		cdef char *uquery = py_uquery
+
 		cdef py4s.raptor_uri *bu = py4s.raptor_new_uri(base_uri)
 		self._qr = py4s.fs_query_execute(self._qs, self._link, bu,
-				query, 0, opt_level, soft_limit)
+				uquery, 0, opt_level, soft_limit)
 		return QueryResults(self)
 
 	def delete_model(self, model=None, all=False):
@@ -99,6 +104,7 @@ cdef class Cursor:
 		self.flush()
 
 	def add(self, statement, model_uri="local:"):
+		cdef unsigned char *udata
 		n = _n3(statement)
 		q = "ASK WHERE { GRAPH <%s> " % model_uri + "{" + n + " } }"
 		if not self.execute(q, model_uri):
@@ -107,8 +113,9 @@ cdef class Cursor:
 				transaction = True
 			else:
 				transaction = False
-			data = n + " ."
-			py4s.fs_import_stream_data(self._link, data, len(data))
+			data = (n + " .").encode("UTF-8")
+			udata = data
+			py4s.fs_import_stream_data(self._link, udata, len(udata))
 			if transaction:
 				self.commit()
 
@@ -138,7 +145,7 @@ cdef class Cursor:
 		else:
 			transaction = False
 		for statement in model.triples((None, None, None)):
-			self.add(statement)
+			self.add(statement, model_uri=model.identifier)
 		if transaction:
 			self.commit()
 
