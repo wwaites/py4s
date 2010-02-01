@@ -2,9 +2,11 @@ cimport py4s
 
 try:
 	from rdflib.term import URIRef, Literal, BNode, Identifier, Variable
+	from rdflib.syntax.NamespaceManager import NamespaceManager
 	from rdflib.graph import Graph
 except ImportError:
 	from rdflib import URIRef, Literal, BNode, Identifier, Variable
+	from rdflib.syntax.NamespaceManager import NamespaceManager
 	from rdflib.Graph import Graph
 
 include "rnode.pyx"
@@ -16,11 +18,13 @@ cdef class FourStore:
 	cdef py4s.fsp_link *_link
 	cdef bytes _name
 	cdef bytes _pw
+	cpdef public namespace_manager
 	cdef int _ro
 	def __cinit__(self, name, pw="", ro=0):
 		self._name = name
 		self._pw = pw
 		self._ro = ro
+		self.namespace_manager = NamespaceManager(Graph())
 	def __dealloc__(self):
 		if self._link:
 			py4s.fsp_close_link(self._link)
@@ -43,9 +47,6 @@ cdef class FourStore:
 	def query(self, *av, **kw):
 		"""Execute a SPARQL Query"""
 		return self.cursor().execute(*av, **kw)
-	def triples(self, *av, **kw):
-		"""Return triples matching (s,p,o) pattern"""
-		return _TripleStream(self, *av, **kw)
 	def add(self, *av, **kw):
 		"""Add triples to the graph"""
 		return self.cursor().add(*av, **kw)
@@ -56,6 +57,59 @@ cdef class FourStore:
 	def remove(self, *av, **kw):
 		"""Remove a triple from the graph (unimplemented)"""
 		raise FourStoreError("Triple Removal Not Implemented")
+
+	def __contains__(self, statement):
+		q = "ASK WHERE { " + " ".join([x.n3() for x in statement]) + " }"
+		return bool(self.cursor().execute(q))
+	def triples(self, statement, model_uri=None, *av, **kw):
+		"""Return triples matching (s,p,o) pattern"""
+		s,p,o = statement
+		bindings = (
+			s or Variable("s"),
+			p or Variable("p"),
+			o or Variable("o")
+		)
+		query = "SELECT DISTINCT " + " ".join([x.n3() for x in bindings if isinstance(x, Variable)])
+		query += " WHERE { "
+		if model_uri: query += "GRAPH <%s> { " % model_uri
+		query += " ".join([x.n3() for x in bindings])
+		if model_uri: query += " }"
+		query += " }"
+		results = self.cursor().execute(query, *av, **kw)
+		return _TripleStream(bindings, results)
+	def subjects(self, predicate=Variable("p"), object=Variable("o"), model_uri=None, **kw):
+		q = "SELECT DISTINCT ?s WHERE { "
+		if model_uri: q += "GRAPH <%s> { " % model_uri
+		q += " ".join([x.n3() for x in (Variable("s"), predicate, object)])
+		if model_uri: q += " }"
+		q += " }"
+		return [x[0] for x in self.cursor().execute(q, **kw)]
+	def predicates(self, subject=Variable("s"), object=Variable("o"), model_uri=None, **kw):
+		q = "SELECT DISTINCT ?p WHERE { "
+		if model_uri: q += "GRAPH <%s> { " % model_uri
+		q += " ".join([x.n3() for x in (subject, Variable("p"), object)])
+		if model_uri: q += " }"
+		q += " }"
+		return [x[0] for x in self.cursor().execute(q, **kw)]
+	def objects(self, subject=Variable("s"), predicate=Variable("p"), model_uri=None, **kw):
+		q = "SELECT DISTINCT ?o WHERE { "
+		if model_uri: q += "GRAPH <%s> { " % model_uri
+		q += " ".join([x.n3() for x in (subject, predicate, Variable("o"))])
+		if model_uri: q += " }"
+		q += " }"
+		return [x[0] for x in self.cursor().execute(q, **kw)]
+
+	def compute_qname(self, *av, **kw):
+		return self.namespace_manager.compute_qname(*av, **kw)
+	def serialize(self, format="xml", model_uri=None, **kw):
+		q = "CONSTRUCT { ?s ?p ?o } WHERE { "
+		if model_uri: q += "GRAPH <%s> { " % model_uri
+		q += "?s ?p ?o"
+		if model_uri: q += " }"
+		q += " }"
+		g = self.cursor().execute(q, **kw).construct()
+		g.namespace_manager = self.namespace_manager
+		return g.serialize(format=format)
 
 cdef _n3(s):
 	return " ".join([x.n3() for x in s])
@@ -276,16 +330,10 @@ cdef class QueryResults:
 cdef class _TripleStream:
 	cdef tuple _bindings
 	cdef QueryResults _results
-	def __init__(self, store, statement, *av, **kw):
-		s,p,o = statement
-		self._bindings = (
-			s or Variable("s"),
-			p or Variable("p"),
-			o or Variable("o")
-		)
-		query = "SELECT DISTINCT " + " ".join([x.n3() for x in self._bindings if isinstance(x, Variable)]) + \
-			" WHERE { " + " ".join([x.n3() for x in self._bindings]) + " }"
-		self._results = store.cursor().execute(query, *av, **kw)
+	def __init__(self, bindings, results, *av, **kw):
+		self._bindings = bindings
+		self._results = results
+
 	def __iter__(self):
 		return self
 	def __next__(self):

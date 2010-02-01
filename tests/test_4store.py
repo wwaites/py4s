@@ -6,6 +6,7 @@ try:
 except ImportError:
 	from rdflib import URIRef, RDF, RDFS, Literal
 	from rdflib.Graph import Graph
+from StringIO import StringIO
 
 TEST_GRAPH = "http://example.org/"
 store = FourStore("py4s_test")
@@ -47,6 +48,17 @@ class TestClass:
 		for s,p,o in store.triples((URIRef("http://irl.styx.org/foo"), None, None)):
 			## should only have one
 			assert (s,p,o) == (URIRef("http://irl.styx.org/foo"), RDF.type, URIRef("http://irl.styx.org/Thing"))
+
+	def test_13_subjects(self):
+		assert len(store.subjects()) == 3
+	def test_13_predicates(self):
+		assert len(store.predicates()) == 2
+	def test_13_objects(self):
+		assert len(store.objects(predicate=RDFS.label)) == 2
+		
+	def test_15_serialize(self):
+		data = store.serialize(format="n3")
+		Graph().parse(StringIO(data), format="n3")
 	def test_99_delete_graph(self):
 		cursor = store.cursor()
 		cursor.delete_model(TEST_GRAPH)
