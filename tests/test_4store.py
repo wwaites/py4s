@@ -1,7 +1,7 @@
 from py4s import FourStore
 try:
 	from rdflib.term import URIRef, Literal
-	from rdflib.namespace import RDF
+	from rdflib.namespace import RDF, RDFS
 	from rdflib.graph import Graph
 except ImportError:
 	from rdflib import URIRef, RDF, RDFS, Literal
@@ -43,6 +43,10 @@ class TestClass:
 		r = c.execute("CONSTRUCT { <http://foo> ?p ?o } WHERE { ?s ?p ?o } LIMIT 2")
 		g = r.construct()
 		assert len(g) == 2
+	def test_12_triples(self):
+		for s,p,o in store.triples((URIRef("http://irl.styx.org/foo"), None, None)):
+			## should only have one
+			assert (s,p,o) == (URIRef("http://irl.styx.org/foo"), RDF.type, URIRef("http://irl.styx.org/Thing"))
 	def test_99_delete_graph(self):
 		cursor = store.cursor()
 		cursor.delete_model(TEST_GRAPH)

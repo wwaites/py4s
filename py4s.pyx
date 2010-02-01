@@ -1,10 +1,10 @@
 cimport py4s
 
 try:
-	from rdflib.term import URIRef, Literal, BNode, Identifier
+	from rdflib.term import URIRef, Literal, BNode, Identifier, Variable
 	from rdflib.graph import Graph
 except ImportError:
-	from rdflib import URIRef, Literal, BNode, Identifier
+	from rdflib import URIRef, Literal, BNode, Identifier, Variable
 	from rdflib.Graph import Graph
 
 include "rnode.pyx"
@@ -39,8 +39,23 @@ cdef class FourStore:
 			raise FourStoreError("Not Connected")
 		return Cursor(self)
 
+	### methods for compatibility with RDFLib API
 	def query(self, *av, **kw):
-		return self.cursor.query(*av, **kw)
+		"""Execute a SPARQL Query"""
+		return self.cursor().execute(*av, **kw)
+	def triples(self, *av, **kw):
+		"""Return triples matching (s,p,o) pattern"""
+		return _TripleStream(self, *av, **kw)
+	def add(self, *av, **kw):
+		"""Add triples to the graph"""
+		return self.cursor().add(*av, **kw)
+	def addN(self, slist, **kw):
+		"""Add a list of quads to the graph"""
+		for s,p,o,c in slist:
+			self.add((s,p,o), model_uri=c, **kw)
+	def remove(self, *av, **kw):
+		"""Remove a triple from the graph (unimplemented)"""
+		raise FourStoreError("Triple Removal Not Implemented")
 
 cdef _n3(s):
 	return " ".join([x.n3() for x in s])
@@ -172,7 +187,10 @@ class _ResultRow(list):
 	def __getitem__(self, k):
 		if isinstance(k, str):
 			return self[self._bindings[k]]
-		return super(_ResultRow, self).__getitem__(k)
+		elif isinstance(k, Variable):
+			return self[self._bindings[str(k)]]
+		else:
+			return super(_ResultRow, self).__getitem__(k)
 
 cdef class QueryResults:
 	cdef py4s.fs_query *_qr
@@ -254,3 +272,29 @@ cdef class QueryResults:
 
 	def __nonzero__(self):
 		return py4s.py4s_query_bool(self._qr)
+
+cdef class _TripleStream:
+	cdef tuple _bindings
+	cdef QueryResults _results
+	def __init__(self, store, statement, *av, **kw):
+		s,p,o = statement
+		self._bindings = (
+			s or Variable("s"),
+			p or Variable("p"),
+			o or Variable("o")
+		)
+		query = "SELECT DISTINCT " + " ".join([x.n3() for x in self._bindings if isinstance(x, Variable)]) + \
+			" WHERE { " + " ".join([x.n3() for x in self._bindings]) + " }"
+		self._results = store.cursor().execute(query, *av, **kw)
+	def __iter__(self):
+		return self
+	def __next__(self):
+		_row = self._results.next()
+		triple = []
+		for b in self._bindings:
+			if isinstance(b, Variable):
+				triple.append(_row[b])
+			else:
+				triple.append(b)
+		return tuple(triple)
+
