@@ -26,10 +26,12 @@ cdef class FourStoreClient:
 		if self._link:
 			py4s.fsp_close_link(self._link)
 
-	def open(self, configuration):
+	def open(self, configuration, create=False):
 		cdef char *name = configuration
 		cdef char *pw = ""
 		cdef int ro = 0
+		if self._link:
+			py4s.fsp_close_link(self._link)
 		self._link = py4s.fsp_open_link(name, pw, ro)
 		if not self._link:
 			raise FourStoreError("Could not connect to back-end")
