@@ -3,7 +3,7 @@ from distutils.extension import Extension
 from Cython.Distutils import build_ext
 import sys, os, re
 
-version = '0.4'
+version = '0.5'
 
 try:
 	os.stat("src")
@@ -77,9 +77,9 @@ except OSError:
 	pass
 
 libpy4s = Extension(
-        name="py4s",
+        name="_py4s",
         sources=[
-		"py4s.pyx",
+		"_py4s.pyx",
 		"src/common/4s-common.c",
 		"src/common/4s-client.c",
 		"src/common/4s-mdns.c",
@@ -122,7 +122,7 @@ Python C bindings for 4store""",
 	author_email='wwaites_at_gmail.com',
 	url='http://github.com/wwaites/py4s',
 	license='GPL',
-	packages=[],
+	packages=["py4s"],
 	cmdclass={'build_ext': build_ext},
 	ext_modules=[libpy4s],
 )

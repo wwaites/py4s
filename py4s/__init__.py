@@ -7,7 +7,20 @@ from _py4s import FourStoreClient
 __all__ = ["FourStore"]
 
 class FourStore(FourStoreClient, Store):
-	### methods for compatibility with RDFLib API
+	def __init__(self, *av, **kw):
+		self.__namespace = {}
+		self.__prefix = {}
+		super(FourStore, self).__init__(*av, **kw)
+	def bind(self, prefix, namespace):
+		self.__namespace[prefix] = namespace
+		self.__prefix[namespace] = prefix
+	def namespace(self, prefix):
+		return self.__namespace.get(prefix, None)
+	def prefix(self, namespace):
+		return self.__prefix.get(namespace, None)
+	def namespaces(self):
+		return self.__namespace.items()
+
 	def query(self, *av, **kw):
 		"""Execute a SPARQL Query"""
 		return self.cursor().execute(*av, **kw)
