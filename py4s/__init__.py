@@ -40,7 +40,7 @@ class FourStore(FourStoreClient, Store):
 		q = "ASK WHERE { " + " ".join([x.n3() for x in statement]) + " }"
 		return bool(self.cursor().execute(q))
 
-	def triples(self, statement, context=None, *av, **kw):
+	def triples(self, statement, context="local:", **kw):
 		"""Return triples matching (s,p,o) pattern"""
 		if isinstance(context, Graph): _context = context.identifier
 		else: _context = context
@@ -52,11 +52,11 @@ class FourStore(FourStoreClient, Store):
 		)
 		query = "SELECT DISTINCT " + " ".join([x.n3() for x in bindings if isinstance(x, Variable)])
 		query += " WHERE { "
-		if _context: query += "GRAPH <%s> { " % _context
+		if _context and _context != "local:": query += "GRAPH <%s> { " % _context
 		query += " ".join([x.n3() for x in bindings])
-		if _context: query += " }"
+		if _context and _context != "local:": query += " }"
 		query += " }"
-		results = self.cursor().execute(query, *av, **kw)
+		results = self.cursor().execute(query, **kw)
 		for row in results:
 			triple = []
 			for b in bindings:
@@ -65,33 +65,5 @@ class FourStore(FourStoreClient, Store):
 				else:
 					triple.append(b)
 			yield (tuple(triple), context)
-			
-	def subjects(self, predicate=Variable("p"), object=Variable("o"), context=None, **kw):
-		if isinstance(context, Graph): context = context.identifier
-		q = "SELECT DISTINCT ?s WHERE { "
-		if context: q += "GRAPH <%s> { " % context
-		q += " ".join([x.n3() for x in (Variable("s"), predicate, object)])
-		if context: q += " }"
-		q += " }"
-		for s, in self.cursor().execute(q, **kw):
-			yield s
-	def predicates(self, subject=Variable("s"), object=Variable("o"), context=None, **kw):
-		if isinstance(context, Graph): context = context.identifier
-		q = "SELECT DISTINCT ?p WHERE { "
-		if context: q += "GRAPH <%s> { " % context
-		q += " ".join([x.n3() for x in (subject, Variable("p"), object)])
-		if context: q += " }"
-		q += " }"
-		for p, in self.cursor().execute(q, **kw):
-			yield p
-	def objects(self, subject=Variable("s"), predicate=Variable("p"), context=None, **kw):
-		if isinstance(context, Graph): context = context.identifier
-		q = "SELECT DISTINCT ?o WHERE { "
-		if context: q += "GRAPH <%s> { " % context
-		q += " ".join([x.n3() for x in (subject, predicate, Variable("o"))])
-		if context: q += " }"
-		q += " }"
-		for o, in self.cursor().execute(q, **kw):
-			yield o
 
 register("FourStore", Store, "py4s", "FourStore")

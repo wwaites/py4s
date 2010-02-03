@@ -43,14 +43,6 @@ class TestClass:
 		for s,p,o in g.triples((URIRef("http://irl.styx.org/foo"), None, None)):
 			## should only have one
 			assert (s,p,o) == (URIRef("http://irl.styx.org/foo"), RDF.type, URIRef("http://irl.styx.org/Thing"))
-
-	def test_13_subjects(self):
-		assert len(list(store.subjects())) == 3
-	def test_13_predicates(self):
-		assert len(list(store.predicates())) == 2
-	def test_13_objects(self):
-		assert len(list(store.objects(predicate=RDFS.label))) == 2
-		
 	def test_15_serialize(self):
 		g = Graph(store, identifier=TEST_GRAPH)
 		data = g.serialize(format="n3")
