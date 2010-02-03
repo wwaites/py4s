@@ -2,15 +2,16 @@ from rdflib.graph import Graph
 from rdflib.term import Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
-from _py4s import FourStoreClient
+from _py4s import FourStoreClient, FourStoreError
 
-__all__ = ["FourStore"]
+__all__ = ["FourStore", "FourStoreError"]
 
 class FourStore(FourStoreClient, Store):
-	def __init__(self, *av, **kw):
+	def __init__(self, configuration=None):
 		self.__namespace = {}
 		self.__prefix = {}
-		super(FourStore, self).__init__(*av, **kw)
+		if configuration:
+			self.open(configuration)
 	def bind(self, prefix, namespace):
 		self.__namespace[prefix] = namespace
 		self.__prefix[namespace] = prefix

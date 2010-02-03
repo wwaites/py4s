@@ -18,10 +18,6 @@ cdef class FourStoreClient:
 	cdef dict _prefix
 	cpdef public bool context_aware
 
-	def __cinit__(self, configuration=None):
-		if configuration:
-			self.open(configuration)
-
 	def __dealloc__(self):
 		if self._link:
 			py4s.fsp_close_link(self._link)
@@ -31,7 +27,7 @@ cdef class FourStoreClient:
 		cdef char *pw = ""
 		cdef int ro = 0
 		if self._link:
-			py4s.fsp_close_link(self._link)
+			raise FourStoreError("Already Open")
 		self._link = py4s.fsp_open_link(name, pw, ro)
 		if not self._link:
 			raise FourStoreError("Could not connect to back-end")

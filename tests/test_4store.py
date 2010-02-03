@@ -9,8 +9,7 @@ except ImportError:
 from StringIO import StringIO
 
 TEST_GRAPH = "http://example.org/"
-store = FourStore()
-store.open("py4s_test")
+store = FourStore("py4s_test")
 
 class TestClass:
 	def test_00_purge(self):
