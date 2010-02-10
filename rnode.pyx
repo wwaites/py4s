@@ -19,7 +19,7 @@ cdef _rnode(dict bindings, fs_row *row, rasqal_literal *l):
 	if l.type in LITERALS:
 		kw = {}
 		if l.language:
-			kw["lang"] = l.language
+			kw["lang"] = l.language.lower()
 		if l.datatype:
 			kw["datatype"] = URIRef(py4s.raptor_uri_as_string(l.datatype))
 		if l.type in (RASQAL_LITERAL_INTEGER, RASQAL_LITERAL_BOOLEAN):

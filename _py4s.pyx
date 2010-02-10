@@ -168,7 +168,7 @@ cdef _node(fs_row r):
 		if r.dt:
 			kw["datatype"] = URIRef(r.dt)
 		if r.lang:
-			kw["lang"] = r.lang
+			kw["lang"] = r.lang.lower()
 		return Literal(r.lex, **kw)
 	if r.type == 3: # FS_TYPE_BNODE
 		return BNode(r.lex)
