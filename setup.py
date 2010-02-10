@@ -61,8 +61,10 @@ extra_includes = uniqify(extra_includes)
 glib_dirs, glib_libs = get_libs("glib-2.0")
 raptor_dirs, raptor_libs = get_libs("raptor")
 rasqal_dirs, rasqal_libs = get_libs("rasqal")
-library_dirs = uniqify(glib_dirs + rasqal_dirs + raptor_dirs)
-libraries = uniqify(glib_libs + rasqal_libs + raptor_libs)
+avahi_client_dirs, avahi_client_libs = get_libs("avahi-client")
+avahi_glib_dirs, avahi_glib_libs = get_libs("avahi-glib")
+library_dirs = uniqify(glib_dirs + rasqal_dirs + raptor_dirs + avahi_client_dirs + avahi_glib_dirs)
+libraries = uniqify(glib_libs + rasqal_libs + raptor_libs + avahi_client_libs + avahi_glib_libs)
 
 define_macros=[]
 
@@ -70,11 +72,14 @@ if not os.system("pkg-config rasqal --atleast-version=0.9.14"):
 	define_macros.append(("HAVE_LAQRS", 1))
 if not os.system("pkg-config rasqal --atleast-version=0.9.16"):
 	define_macros.append(("HAVE_RASQAL_WORLD", 1))
-try:
-	os.stat("/usr/include/dns_sd.h")
-	define_macros.append(("USE_DNS_SD", 1))
-except OSError:
-	pass
+if not os.system("pkg-config --exists avahi-client avahi-glib"):
+	define_macros.append(("USE_AVAHI", 1))
+else:
+	try:
+		os.stat("/usr/include/dns_sd.h")
+		define_macros.append(("USE_DNS_SD", 1))
+	except OSError:
+		pass
 
 libpy4s = Extension(
         name="_py4s",
