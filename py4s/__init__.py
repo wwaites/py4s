@@ -7,6 +7,7 @@ from _py4s import FourStoreClient, FourStoreError
 __all__ = ["FourStore", "FourStoreError"]
 
 class FourStore(FourStoreClient, Store):
+	context_aware = True
 	def __init__(self, configuration=None):
 		self.__namespace = {}
 		self.__prefix = {}
@@ -36,12 +37,25 @@ class FourStore(FourStoreClient, Store):
 		"""Remove a triple from the graph (unimplemented)"""
 		raise FourStoreError("Triple Removal Not Implemented")
 
-	def __contains__(self, statement):
-		q = "ASK WHERE { " + " ".join([x.n3() for x in statement]) + " }"
-		return bool(self.cursor().execute(q))
+	def __contains__(self, statement, context="local:"):
+		if isinstance(context, Graph): _context = context.identifier
+		else: _context = context
+		query = "ASK WHERE { "
+		if _context and _context != "local:": query += "GRAPH <%s> { " % _context
+		query += " ".join([x.n3() for x in statement])
+		if _context and _context != "local:": query += " }"
+		query += " }"
+		return bool(self.cursor().execute(query))
 
 	def triples(self, statement, context="local:", **kw):
 		"""Return triples matching (s,p,o) pattern"""
+
+		## shortcut if we are just checking the existence
+		if all(statement):
+			if self.__contains__(statement, context):
+				yield statement, context
+			return
+
 		if isinstance(context, Graph): _context = context.identifier
 		else: _context = context
 		s,p,o = statement

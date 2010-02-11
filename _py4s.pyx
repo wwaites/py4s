@@ -16,14 +16,27 @@ cdef class FourStoreClient:
 	cdef py4s.fsp_link *_link
 	cdef dict _namespace
 	cdef dict _prefix
-	cpdef public bool context_aware
+	cpdef public int opt_level
+	cpdef public int soft_limit
 
 	def __dealloc__(self):
 		if self._link:
 			py4s.fsp_close_link(self._link)
 
 	def open(self, configuration, create=False):
-		cdef char *name = configuration
+		conf = configuration.split(",", 1)
+		self.opt_level = 3
+		self.soft_limit = 0
+		if len(conf) == 2:
+			options = [x.split("=") for x in conf[1].split(",")]
+			for k,v in options:
+				if k == "soft_limit":
+					self.soft_limit = int(v)
+				elif k == "opt_level":
+					self.opt_level = int(v)
+				else:
+					raise FourStoreError("Unknown option: %s" % (k,))
+		cdef char *name = conf[0]
 		cdef char *pw = ""
 		cdef int ro = 0
 		if self._link:
@@ -45,11 +58,14 @@ cdef class _Cursor:
 	cdef py4s.fsp_link *_link
 	cdef py4s.fs_query_state *_qs
 	cdef py4s.fs_query *_qr
+	cdef char *_query
 	cdef bool _transaction
 	cdef dict _features
 	cpdef public list warnings
+	cpdef public FourStoreClient store
 
 	def __cinit__(self, FourStoreClient store):
+		self.store = store
 		self._link = store._link
 		self._qs = py4s.fs_query_init(store._link)
 		features = py4s.fsp_link_features(store._link).strip().split(" ")
@@ -63,7 +79,7 @@ cdef class _Cursor:
 	def flush(self):
 		py4s.fs_query_cache_flush(self._qs, 0)
 
-	def execute(self, query, context="local:", initNs={}, opt_level=3, soft_limit=0):
+	def execute(self, query, context="local:", initNs={}):
 		if self._qr:
 			py4s.fs_query_free(self._qr)
 		if initNs:
@@ -77,11 +93,12 @@ cdef class _Cursor:
 
 		# silly hoop for unicode data
 		py_uquery = query.encode("UTF-8")
-		cdef char *uquery = py_uquery
+		self._query = py_uquery
 
 		cdef py4s.raptor_uri *bu = py4s.raptor_new_uri(context)
 		self._qr = py4s.fs_query_execute(self._qs, self._link, bu,
-				uquery, 0, opt_level, soft_limit)
+				self._query, 0,
+				self.store.opt_level, self.store.soft_limit)
 		results = _QueryResults(self)
 
 		# construct and describe queries return a graph
@@ -201,7 +218,7 @@ cdef class _QueryResults:
 		self._bindings = dict(self._header)
 		self._get_warnings()
 		if py4s.fs_query_errors(self._qr):
-			raise FourStoreError("Bad Query")
+			raise FourStoreError("Bad Query: %s" % qs._query)
 	cdef _get_warnings(self):
 		cdef py4s.GSList *warnings = py4s.py4s_query_warnings(self._qr)
 		cdef py4s.GSList *w = warnings
