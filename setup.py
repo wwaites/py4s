@@ -38,15 +38,15 @@ so as to have COUNT support.
 	os.symlink("../4store/src", "src")
 
 def get_includes(pkg):
-	fp = os.popen("pkg-config --cflags-only-I %s" % (pkg,))
+	fp = os.popen("pkg-config --cflags-only-I %s 2> /dev/null" % (pkg,))
 	includes = fp.read().strip().replace("-I", "").split(" ")
 	fp.close()
 	return includes
 def get_libs(pkg):
-	fp = os.popen("pkg-config --libs-only-L %s" % (pkg,))
+	fp = os.popen("pkg-config --libs-only-L %s 2> /dev/null" % (pkg,))
 	libdirs = fp.read().strip().replace("-L", "").split(" ")
 	fp.close()
-	fp = os.popen("pkg-config --libs-only-l %s" % (pkg,))
+	fp = os.popen("pkg-config --libs-only-l %s 2> /dev/null" % (pkg,))
 	libs = fp.read().strip().replace("-l", "").split(" ")
 	fp.close()
 	return libdirs, libs
@@ -80,6 +80,14 @@ else:
 		define_macros.append(("USE_DNS_SD", 1))
 	except OSError:
 		pass
+
+_rev = os.popen("git describe --tags 2> /dev/null").read().strip()
+if _rev:
+	version = _rev
+else:
+	_rev = os.popen("git describe --always --tags 2> /dev/null").read().strip()
+	if _rev:
+		version = _rev
 
 libpy4s = Extension(
         name="_py4s",
