@@ -115,6 +115,7 @@ libpy4s = Extension(
 		"src/frontend/query-data.c",
 		"src/frontend/order.c",
 		"src/frontend/import.c",
+		"src/frontend/update.c",
 		"py4s_helpers.c",
 	],
 	extra_compile_args=["-std=gnu99"],

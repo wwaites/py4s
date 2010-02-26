@@ -113,6 +113,9 @@ cdef extern from "frontend/import.h":
 	int fs_import_stream_data(fsp_link *link, unsigned char *data, size_t count)
 	int fs_import_stream_finish(fsp_link *link, int *count, int *errors)
 
+cdef extern from "frontend/update.h":
+	int fs_update(fsp_link *link, char *update, char **message, int unsafe)
+
 cdef extern from "glib/gslist.h":
 	ctypedef struct GSList:
 		char		*data

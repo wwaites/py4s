@@ -2,10 +2,10 @@ from py4s import FourStore
 try:
 	from rdflib.term import URIRef, Literal
 	from rdflib.namespace import RDF, RDFS
-	from rdflib.graph import Graph
+	from rdflib.graph import Graph, ConjunctiveGraph
 except ImportError:
 	from rdflib import URIRef, RDF, RDFS, Literal
-	from rdflib.Graph import Graph
+	from rdflib.Graph import Graph, ConjunctiveGraph
 from StringIO import StringIO
 
 TEST_GRAPH = "http://example.org/"
@@ -35,10 +35,16 @@ class TestClass:
 		g.add(s)
 		for count, in store.query("SELECT DISTINCT COUNT(?s) AS c WHERE { graph <%s> { ?s ?p ?o } }" % TEST_GRAPH): pass
 		assert count == 3
-	def test_11_construct(self):
+	def test_20_remove(self):
+		assert store.query("ASK WHERE { ?s ?p ?o }")
+		g = ConjunctiveGraph(store)
+		for ctx in g.contexts():
+			store.remove((None,None,None), context=ctx)
+		assert not store.query("ASK WHERE { ?s ?p ?o }")
+	def test_13_construct(self):
 		g = store.query("CONSTRUCT { <http://foo> ?p ?o } WHERE { ?s ?p ?o } LIMIT 2")
 		assert len(g) == 2
-	def test_12_triples(self):
+	def test_14_triples(self):
 		g = Graph(store, identifier=TEST_GRAPH)
 		for s,p,o in g.triples((URIRef("http://irl.styx.org/foo"), None, None)):
 			## should only have one

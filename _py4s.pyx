@@ -51,7 +51,7 @@ cdef class FourStoreClient:
 	def cursor(self):
 		return _Cursor(self)
 
-cdef _n3(s):
+def _n3(s):
 	return " ".join([x.n3() for x in s])
 
 cdef class _Cursor:
@@ -143,6 +143,12 @@ cdef class _Cursor:
 			py4s.fs_import_stream_data(self._link, udata, len(udata))
 			if transaction:
 				self.commit()
+
+	def update(self, query):
+		cdef char *message
+		py4s.fs_update(self._link, query, &message, 1)
+		if message != NULL:
+			raise FourStoreError("%s: -- %s" % (message, query))
 
 	def transaction(self, context="local:"):
 		if isinstance(context, Graph): context = context.identifier

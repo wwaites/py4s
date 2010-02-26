@@ -2,7 +2,7 @@ from rdflib.graph import Graph
 from rdflib.term import Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
-from _py4s import FourStoreClient, FourStoreError
+from _py4s import FourStoreClient, FourStoreError, _n3
 
 __all__ = ["FourStore", "FourStoreError"]
 
@@ -33,9 +33,32 @@ class FourStore(FourStoreClient, Store):
 		"""Add a list of quads to the graph"""
 		for s,p,o,c in slist:
 			self.add((s,p,o), context=c, **kw)
-	def remove(self, *av, **kw):
-		"""Remove a triple from the graph (unimplemented)"""
-		raise FourStoreError("Triple Removal Not Implemented")
+	def remove(self, statement, context="local:"):
+		"""Remove a triple from the graph"""
+		if isinstance(context, Graph): _context = context.identifier
+		else: _context = context
+		s,p,o = statement
+		bindings = (
+			s or Variable("s"),
+			p or Variable("p"),
+			o or Variable("o")
+		)
+
+		construct = "CONSTRUCT { " + _n3(bindings) + " } WHERE { " 
+		if _context and _context != "local:": construct += "GRAPH <%s> { " % _context
+		construct += _n3(bindings)
+		if _context and _context != "local:": construct += " }"
+		construct += " }"
+
+		result = self.cursor().execute(construct)
+
+		delete = "DELETE { "
+		if _context and _context != "local:": delete += "GRAPH <%s> { " % _context
+		delete += " .\n".join(map(_n3, result.triples((None, None, None))))
+		if _context and _context != "local:": delete += " }"
+		delete += " }"
+
+		self.cursor().update(delete)
 
 	def __contains__(self, statement, context="local:"):
 		if isinstance(context, Graph): _context = context.identifier
@@ -46,6 +69,20 @@ class FourStore(FourStoreClient, Store):
 		if _context and _context != "local:": query += " }"
 		query += " }"
 		return bool(self.cursor().execute(query))
+
+	def contexts(self, triple=None):
+		if triple is None: triple = (None,None,None)
+		s,p,o = triple
+		bindings = (
+			s or Variable("s"),
+			p or Variable("p"),
+			o or Variable("o")
+		)
+		query = "SELECT DISTINCT ?g WHERE { GRAPH ?g { "
+		query += " ".join([x.n3() for x in bindings])
+		query += " } }"
+		for g, in self.query(query):
+			yield Graph(self, identifier=g)
 
 	def triples(self, statement, context="local:", **kw):
 		"""Return triples matching (s,p,o) pattern"""
