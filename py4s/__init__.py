@@ -1,5 +1,9 @@
-from rdflib.graph import Graph
-from rdflib.term import Variable
+try:
+	from rdflib.graph import Graph
+	from rdflib.term import Variable
+except ImportError:
+	from rdflib.Graph import Graph
+	from rdflib import Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
 from _py4s import FourStoreClient, FourStoreError, _n3
