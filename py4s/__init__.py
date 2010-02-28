@@ -8,7 +8,7 @@ from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
 from _py4s import FourStoreClient, FourStoreError, _n3
 
-__all__ = ["FourStore", "FourStoreError"]
+__all__ = ["FourStore", "FourStoreError", "LazyFourStore"]
 
 class FourStore(FourStoreClient, Store):
 	context_aware = True
@@ -121,4 +121,19 @@ class FourStore(FourStoreClient, Store):
 					triple.append(b)
 			yield (tuple(triple), context)
 
+class LazyFourStore(Store):
+	def __init__(self, *av, **kw):
+		self.__av__ = av
+		self.__kw__ = kw
+		self.__store__ = None
+	def __getattribute__(self, attr):
+		if attr in ("__av__", "__kw__", "__store__"):
+			return super(LazyFourStore, self).__getattribute__(attr)
+		if attr == "context_aware":
+			return True
+		if self.__store__ is None:
+			self.__store__ = FourStore(*self.__av__, **self.__kw__)
+		return getattr(self.__store__, attr)
+
 register("FourStore", Store, "py4s", "FourStore")
+register("LazyFourStore", Store, "py4s", "LazyFourStore")
