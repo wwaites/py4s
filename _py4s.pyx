@@ -10,9 +10,9 @@ from logging import getLogger
 log = getLogger("py4s")
 
 def version():
-	from pkg_resources import working_set, Requirement
+	from pkg_resources import working_set, Requirement, Environment
 	r = Requirement.parse("py4s")
-	d = working_set.find(r)
+	d = Environment().best_match(r, working_set)
 	return d.version
 version = version()
 
