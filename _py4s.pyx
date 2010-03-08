@@ -10,10 +10,9 @@ from logging import getLogger
 log = getLogger("py4s")
 
 def version():
-	from pkg_resources import WorkingSet, Requirement
-	w = WorkingSet()
+	from pkg_resources import working_set, Requirement
 	r = Requirement.parse("py4s")
-	d = w.find(r)
+	d = working_set.find(r)
 	return d.version
 version = version()
 
@@ -159,6 +158,7 @@ cdef class _Cursor:
 
 	def update(self, query):
 		cdef char *message
+		log.debug("update: %s" % query)
 		py4s.fs_update(self._link, query, &message, 1)
 		if message != NULL:
 			raise FourStoreError("%s: -- %s" % (message, query))

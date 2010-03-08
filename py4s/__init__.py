@@ -39,6 +39,7 @@ class FourStore(FourStoreClient, Store):
 			self.add((s,p,o), context=c, **kw)
 	def remove(self, statement, context="local:"):
 		"""Remove a triple from the graph"""
+		log.debug("remove(%s) from %s" % (statement, context))
 		if isinstance(context, Graph): _context = context.identifier
 		else: _context = context
 		s,p,o = statement
@@ -55,12 +56,12 @@ class FourStore(FourStoreClient, Store):
 		construct += u" }"
 
 		result = self.cursor().execute(construct)
-
-		delete = u"DELETE { "
-		if _context and _context != "local:": delete += u"GRAPH <%s> { " % _context
-		delete += u" .\n".join(map(_n3, result.triples((None, None, None))))
-		if _context and _context != "local:": delete += u" }"
-		delete += u" }"
+		if len(result) > 0:
+			delete = u"DELETE { "
+			if _context and _context != "local:": delete += u"GRAPH <%s> { " % _context
+			delete += u" .\n".join(map(_n3, result.triples((None, None, None))))
+			if _context and _context != "local:": delete += u" }"
+			delete += u" }"
 
 		self.cursor().update(delete)
 
