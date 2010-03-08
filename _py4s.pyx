@@ -6,6 +6,16 @@ try:
 except ImportError:
 	from rdflib import URIRef, Literal, BNode, Identifier, Variable
 	from rdflib.Graph import Graph
+from logging import getLogger
+log = getLogger("py4s")
+
+def version():
+	from pkg_resources import WorkingSet, Requirement
+	w = WorkingSet()
+	r = Requirement.parse("py4s")
+	d = w.find(r)
+	return d.version
+version = version()
 
 include "rnode.pyx"
 
@@ -24,6 +34,7 @@ cdef class FourStoreClient:
 			py4s.fsp_close_link(self._link)
 
 	def open(self, configuration, create=False):
+		log.info("py4s %s starting up" % version)
 		conf = configuration.split(",", 1)
 		self.opt_level = 3
 		self.soft_limit = 0
@@ -52,7 +63,7 @@ cdef class FourStoreClient:
 		return _Cursor(self)
 
 def _n3(s):
-	return " ".join([x.n3() for x in s])
+	return " ".join([x.n3() for x in s]).encode("utf-8")
 
 cdef class _Cursor:
 	cdef py4s.fsp_link *_link
@@ -82,18 +93,20 @@ cdef class _Cursor:
 	def execute(self, query, context="local:", initNs={}):
 		if self._qr:
 			py4s.fs_query_free(self._qr)
+		if not isinstance(query, unicode):
+			query = query.encode("utf-8")
 		if initNs:
 			prefixes = []
 			for x in initNs:
-				prefixes.append("PREFIX %s: <%s>" % (x, initNs[x]))
-			query = "\n".join(prefixes) + "\n" + query
+				prefixes.append(u"PREFIX %s: <%s>" % (x, initNs[x]))
+			query = u"\n".join(prefixes) + u"\n" + query
 		self.warnings = []
 
 		if isinstance(context, Graph): context = context.identifier
 
 		# silly hoop for unicode data
-		py_uquery = query.encode("UTF-8")
-		self._query = py_uquery
+		#py_uquery = query.encode("utf-8")
+		self._query = query
 
 		cdef py4s.raptor_uri *bu = py4s.raptor_new_uri(context)
 		self._qr = py4s.fs_query_execute(self._qs, self._link, bu,
@@ -131,14 +144,14 @@ cdef class _Cursor:
 		if quoted: raise FourStoreError("Add quoted graphs not supported")
 		if isinstance(context, Graph): context = context.identifier
 		n = _n3(statement)
-		q = "ASK WHERE { GRAPH <%s> " % context + "{" + n + " } }"
+		q = u"ASK WHERE { GRAPH <%s> " % context + u"{" + n + u" } }"
 		if not self.execute(q, context):
 			if not self._transaction:
 				self.transaction(context)
 				transaction = True
 			else:
 				transaction = False
-			data = (n + " .").encode("UTF-8")
+			data = (n + u" .")
 			udata = data
 			py4s.fs_import_stream_data(self._link, udata, len(udata))
 			if transaction:

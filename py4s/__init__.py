@@ -6,7 +6,7 @@ except ImportError:
 	from rdflib import Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
-from _py4s import FourStoreClient, FourStoreError, _n3
+from _py4s import FourStoreClient, FourStoreError, _n3, log, version
 
 __all__ = ["FourStore", "FourStoreError", "LazyFourStore"]
 
@@ -48,30 +48,30 @@ class FourStore(FourStoreClient, Store):
 			o or Variable("o")
 		)
 
-		construct = "CONSTRUCT { " + _n3(bindings) + " } WHERE { " 
-		if _context and _context != "local:": construct += "GRAPH <%s> { " % _context
+		construct = u"CONSTRUCT { " + _n3(bindings) + u" } WHERE { " 
+		if _context and _context != "local:": construct += u"GRAPH <%s> { " % _context
 		construct += _n3(bindings)
-		if _context and _context != "local:": construct += " }"
-		construct += " }"
+		if _context and _context != "local:": construct += u" }"
+		construct += u" }"
 
 		result = self.cursor().execute(construct)
 
-		delete = "DELETE { "
-		if _context and _context != "local:": delete += "GRAPH <%s> { " % _context
-		delete += " .\n".join(map(_n3, result.triples((None, None, None))))
-		if _context and _context != "local:": delete += " }"
-		delete += " }"
+		delete = u"DELETE { "
+		if _context and _context != "local:": delete += u"GRAPH <%s> { " % _context
+		delete += u" .\n".join(map(_n3, result.triples((None, None, None))))
+		if _context and _context != "local:": delete += u" }"
+		delete += u" }"
 
 		self.cursor().update(delete)
 
 	def __contains__(self, statement, context="local:"):
 		if isinstance(context, Graph): _context = context.identifier
 		else: _context = context
-		query = "ASK WHERE { "
-		if _context and _context != "local:": query += "GRAPH <%s> { " % _context
-		query += " ".join([x.n3() for x in statement])
-		if _context and _context != "local:": query += " }"
-		query += " }"
+		query = u"ASK WHERE { "
+		if _context and _context != "local:": query += u"GRAPH <%s> { " % _context
+		query += u" ".join([x.n3() for x in statement])
+		if _context and _context != "local:": query += u" }"
+		query += u" }"
 		return bool(self.cursor().execute(query))
 
 	def contexts(self, triple=None):
@@ -82,9 +82,9 @@ class FourStore(FourStoreClient, Store):
 			p or Variable("p"),
 			o or Variable("o")
 		)
-		query = "SELECT DISTINCT ?g WHERE { GRAPH ?g { "
-		query += " ".join([x.n3() for x in bindings])
-		query += " } }"
+		query = u"SELECT DISTINCT ?g WHERE { GRAPH ?g { "
+		query += u" ".join([x.n3() for x in bindings])
+		query += u" } }"
 		for g, in self.query(query):
 			yield Graph(self, identifier=g)
 
@@ -105,12 +105,12 @@ class FourStore(FourStoreClient, Store):
 			p or Variable("p"),
 			o or Variable("o")
 		)
-		query = "SELECT DISTINCT " + " ".join([x.n3() for x in bindings if isinstance(x, Variable)])
-		query += " WHERE { "
-		if _context and _context != "local:": query += "GRAPH <%s> { " % _context
-		query += " ".join([x.n3() for x in bindings])
-		if _context and _context != "local:": query += " }"
-		query += " }"
+		query = u"SELECT DISTINCT " + u" ".join([x.n3() for x in bindings if isinstance(x, Variable)])
+		query += u" WHERE { "
+		if _context and _context != "local:": query += u"GRAPH <%s> { " % _context
+		query += u" ".join([x.n3() for x in bindings])
+		if _context and _context != "local:": query += u" }"
+		query += u" }"
 		results = self.cursor().execute(query, **kw)
 		for row in results:
 			triple = []
