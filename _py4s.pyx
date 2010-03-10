@@ -240,7 +240,8 @@ cdef class _QueryResults:
 		self._bindings = dict(self._header)
 		self._get_warnings()
 		if py4s.fs_query_errors(self._qr):
-			raise FourStoreError("Bad Query: %s" % qs._query)
+			log.error("bad query:\n%s" % qs._query)
+			raise FourStoreError("Bad Query")
 	cdef _get_warnings(self):
 		cdef py4s.GSList *warnings = py4s.py4s_query_warnings(self._qr)
 		cdef py4s.GSList *w = warnings
