@@ -62,7 +62,7 @@ cdef class FourStoreClient:
 		return _Cursor(self)
 
 def _n3(s):
-	return " ".join([x.n3() for x in s]).encode("utf-8")
+	return " ".join([x.n3() for x in s])
 
 cdef class _Cursor:
 	cdef py4s.fsp_link *_link
@@ -104,8 +104,8 @@ cdef class _Cursor:
 		if isinstance(context, Graph): context = context.identifier
 
 		# silly hoop for unicode data
-		#py_uquery = query.encode("utf-8")
-		self._query = query
+		py_uquery = query.encode("utf-8")
+		self._query = py_uquery
 
 		cdef py4s.raptor_uri *bu = py4s.raptor_new_uri(context)
 		self._qr = py4s.fs_query_execute(self._qs, self._link, bu,
@@ -143,23 +143,26 @@ cdef class _Cursor:
 		if quoted: raise FourStoreError("Add quoted graphs not supported")
 		if isinstance(context, Graph): context = context.identifier
 		n = _n3(statement)
-		q = u"ASK WHERE { GRAPH <%s> " % context + u"{" + n + u" } }"
+		q = u"ASK WHERE { GRAPH <%s> { %s } } " % (context, n)
 		if not self.execute(q, context):
 			if not self._transaction:
 				self.transaction(context)
 				transaction = True
 			else:
 				transaction = False
-			data = (n + u" .")
+			data = (n + u" .").encode("utf-8")
 			udata = data
 			py4s.fs_import_stream_data(self._link, udata, len(udata))
 			if transaction:
 				self.commit()
 
 	def update(self, query):
+		cdef char *uquery
 		cdef char *message
-		log.debug("update: %s" % query)
-		py4s.fs_update(self._link, query, &message, 1)
+		#log.debug("update: %s" % query)
+		py_uquery = uquery.encode("utf-8")
+		uquery = py_uquery
+		py4s.fs_update(self._link, uquery, &message, 1)
 		if message != NULL:
 			raise FourStoreError("%s: -- %s" % (message, query))
 
