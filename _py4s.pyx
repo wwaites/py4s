@@ -159,12 +159,12 @@ cdef class _Cursor:
 	def update(self, query):
 		cdef char *uquery
 		cdef char *message
-		#log.debug("update: %s" % query)
-		py_uquery = uquery.encode("utf-8")
+		py_uquery = query.encode("utf-8")
 		uquery = py_uquery
 		py4s.fs_update(self._link, uquery, &message, 1)
 		if message != NULL:
-			raise FourStoreError("%s: -- %s" % (message, query))
+			log.error("update: %s\n%s" % (message, uquery))
+			raise FourStoreError("%s" % (message,))
 
 	def transaction(self, context="local:"):
 		if isinstance(context, Graph): context = context.identifier
