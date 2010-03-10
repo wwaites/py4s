@@ -63,7 +63,7 @@ class FourStore(FourStoreClient, Store):
 			if _context and _context != "local:": delete += u" }"
 			delete += u" }"
 
-		self.cursor().update(delete)
+			self.cursor().update(delete)
 
 	def __contains__(self, statement, context="local:"):
 		if isinstance(context, Graph): _context = context.identifier
