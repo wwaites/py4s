@@ -122,7 +122,7 @@ cdef class _Cursor:
 		return results
 
 	def delete_model(self, model=None, all=False):
-		if not model and not all:
+		if model is None and all is False:
 			raise FourStoreError("Nothing to Delete")
 		if isinstance(model, Graph):
 			context = model.identifier
