@@ -15,7 +15,13 @@ http://www.cython.org
 
 You need version 0.12 of greater of Cython, the version you
 get with pip or easy_install is fine, the version you get
-with apt on debian/ubuntu is too old.
+with apt on debian/ubuntu is too old. This means doing 
+
+	pip install cython
+
+	- or -
+
+	easy_install cython
 
 See the directory tests for some examples of usage. They can
 be run with
