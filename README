@@ -11,7 +11,11 @@ for multiple clients but should be considered to be
 bleeding edge code.
 
 Building this package requires Cython from
-http://www.cython.org
+http://www.cython.org 
+
+You need version 0.12 of greater of Cython, the version you
+get with pip or easy_install is fine, the version you get
+with apt on debian/ubuntu is too old.
 
 See the directory tests for some examples of usage. They can
 be run with
