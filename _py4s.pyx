@@ -64,6 +64,32 @@ cdef class FourStoreClient:
 def _n3(s):
     return " ".join([x.n3() for x in s])
 
+def _quote_encode(self):
+    ## Taken from rdflib 3 for working with rdflib 2.4.2...
+    # This simpler encoding doesn't work; a newline gets encoded as "\\n",
+    # which is ok in sourcecode, but we want "\n".
+    #encoded = self.encode('unicode-escape').replace(
+    #        '\\', '\\\\').replace('"','\\"')
+    #encoded = self.replace.replace('\\', '\\\\').replace('"','\\"')
+
+    # NOTE: Could in theory chose quotes based on quotes appearing in the
+    # string, i.e. '"' and "'", but N3/turtle doesn't allow "'"(?).
+
+    # which is nicer?
+    # if self.find("\"")!=-1 or self.find("'")!=-1 or self.find("\n")!=-1:
+    if "\n" in self:
+        # Triple quote this string.
+        encoded = self.replace('\\', '\\\\')
+        if '"""' in self:
+            # is this ok?
+            encoded = encoded.replace('"""','\\"""')
+        if encoded.endswith('"'):
+            encoded = encoded[:-1] + "\\\""
+        return '"""%s"""' % encoded
+    else:
+        return '"%s"' % self.replace('\n','\\n').replace('\\', '\\\\'
+            ).replace('"', '\\"')
+
 cdef class _Cursor:
     cdef py4s.fsp_link *_link
     cdef py4s.fs_query_state *_qs
@@ -146,7 +172,7 @@ cdef class _Cursor:
         q = u"ASK WHERE { GRAPH <%s> { %s %s " % (context, s.n3(), p.n3())
         filters = []
         if isinstance(o, Literal):
-            q += o._quote_encode()
+            q += _quote_encode(o)
         else:
             q += o.n3()
         q += u" } }"
