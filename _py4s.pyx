@@ -142,14 +142,21 @@ cdef class _Cursor:
     def add(self, statement, context="local:", quoted=False):
         if quoted: raise FourStoreError("Add quoted graphs not supported")
         if isinstance(context, Graph): context = context.identifier
-        n = _n3(statement)
-        q = u"ASK WHERE { GRAPH <%s> { %s } } " % (context, n)
+        s,p,o = statement
+        q = u"ASK WHERE { GRAPH <%s> { %s %s " % (context, s.n3(), p.n3())
+        filters = []
+        if isinstance(o, Literal):
+            q += o._quote_encode()
+        else:
+            q += o.n3()
+        q += u" } }"
         if not self.execute(q, context):
             if not self._transaction:
                 self.transaction(context)
                 transaction = True
             else:
                 transaction = False
+            n = _n3(statement)
             data = (n + u" .").encode("utf-8")
             self._pending.append(data)
             if transaction:
