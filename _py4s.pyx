@@ -96,7 +96,7 @@ cdef class _Cursor:
     cdef py4s.fs_query *_qr
     cdef char *_query
     cdef bool _transaction
-    cdef list _pending
+    cdef dict _pending
     cdef dict _features
     cpdef public list warnings
     cpdef public FourStoreClient store
@@ -148,13 +148,13 @@ cdef class _Cursor:
 
         return results
 
-    def delete_model(self, model=None, all=False):
-        if model is None and all is False:
+    def delete_graph(self, graph=None, all=False):
+        if graph is None and all is False:
             raise FourStoreError("Nothing to Delete")
-        if isinstance(model, Graph):
-            context = model.identifier
+        if isinstance(graph, Graph):
+            context = graph.identifier
         else:
-            context = model
+            context = graph
         cdef fs_rid_vector *mvec = py4s.fs_rid_vector_new(0)
         cdef fs_rid uri_hash
         if context:
@@ -165,28 +165,28 @@ cdef class _Cursor:
         py4s.fsp_delete_model_all(self._link, mvec)
         self.flush()
 
-    def add(self, statement, context="local:", quoted=False):
-        if quoted: raise FourStoreError("Add quoted graphs not supported")
-        if isinstance(context, Graph): context = context.identifier
-        s,p,o = statement
-        q = u"ASK WHERE { GRAPH <%s> { %s %s " % (context, s.n3(), p.n3())
-        filters = []
-        if isinstance(o, Literal):
-            q += _quote_encode(o)
-        else:
-            q += o.n3()
-        q += u" } }"
-        if not self.execute(q, context):
-            if not self._transaction:
-                self.transaction(context)
-                transaction = True
-            else:
-                transaction = False
-            n = _n3(statement)
-            data = (n + u" .").encode("utf-8")
-            self._pending.append(data)
-            if transaction:
-                self.commit()
+    def add_graph(self, graph, replace=True):
+        cdef unsigned char *udata
+        cdef int import_count[1]
+        cdef int error_count[1]
+
+        assert isinstance(graph, Graph)
+        if replace:
+            self.delete_graph(graph)
+
+        content_type = "application/x-turtle"
+        has_o_index = "no_o_index" in self._features
+        py4s.fs_import_stream_start(self._link, graph.identifier,
+                                    content_type, has_o_index, import_count)
+
+        data = graph.serialize(format="nt")
+        udata = data
+        py4s.fs_import_stream_data(self._link, udata, len(udata))
+
+        py4s.fs_import_stream_finish(self._link, import_count, error_count)
+        log.debug("import count: %s errors: %s" % (import_count[0], error_count[0]))
+
+        self.flush()
 
     def update(self, query):
         cdef char *uquery
@@ -197,44 +197,6 @@ cdef class _Cursor:
         if message != NULL:
             log.error("update: %s\n%s" % (message, uquery))
             raise FourStoreError("%s" % (message,))
-
-    def transaction(self, context="local:"):
-        if isinstance(context, Graph): context = context.identifier
-        content_type = "application/x-turtle"
-        if self._transaction:
-            raise FourStoreError("Already in Transaction")
-        has_o_index = "no_o_index" in self._features
-        cdef int import_count[1]
-        py4s.fs_import_stream_start(self._link, context, content_type,
-            has_o_index, import_count)
-        self._transaction = True
-        self._pending = []
-
-    def commit(self):
-        if not self._transaction:
-            raise FourStoreError("No Transaction")
-        cdef unsigned char *udata
-        cdef int import_count[1]
-        cdef int error_count[1]
-        for data in self._pending:
-            udata = data
-            py4s.fs_import_stream_data(self._link, udata, len(udata))
-        py4s.fs_import_stream_finish(self._link, import_count, error_count)
-        log.debug("import count: %s errors: %s" % (import_count[0], error_count[0]))
-        self._pending = []
-        self._transaction = False
-        self.flush()
-
-    def add_model(self, model):
-        if not self._transaction:
-            self.transaction(model.identifier)
-            transaction = True
-        else:
-            transaction = False
-        for statement in model.triples((None, None, None)):
-            self.add(statement, context=model.identifier)
-        if transaction:
-            self.commit()
 
 cdef _node(fs_row r):
     if r.type == 0: # FS_TYPE_NONE
