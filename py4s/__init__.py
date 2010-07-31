@@ -1,14 +1,31 @@
 try:
     from rdflib.graph import Graph
-    from rdflib.term import Variable
+    from rdflib.term import BNode, URIRef, Variable
 except ImportError:
     from rdflib.Graph import Graph
-    from rdflib import Variable
+    from rdflib import BNode, URIRef, Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
 from _py4s import FourStoreClient, FourStoreError, _n3, log, version
 
 __all__ = ["FourStore", "FourStoreError", "LazyFourStore"]
+
+def skolemise((s,p,o)):
+    if isinstance(s, BNode):
+        s = URIRef("bnode:%s" % s)
+    if isinstance(p, BNode):
+        p = URIRef("bnode:%s" % p)
+    if isinstance(o, BNode):
+        o = URIRef("bnode:%s" % o)
+    return s,p,o
+
+def deskolemise(statement):
+    def _dst(x):
+        if isinstance(x, URIRef) and x.startswith("bnode:"):
+            _unused, bnid = x.split(":", 1)
+            return BNode(bnid)
+        return x
+    return map(_dst, statement)
 
 class FourStore(FourStoreClient, Store):
     context_aware = True
@@ -68,7 +85,7 @@ class FourStore(FourStoreClient, Store):
         log.debug("remove(%s) from %s" % (statement, context))
         if isinstance(context, Graph): _context = context.identifier
         else: _context = context
-        s,p,o = statement
+        s,p,o = skolemise(statement)
         bindings = (
             s or Variable("s"),
             p or Variable("p"),
@@ -76,17 +93,17 @@ class FourStore(FourStoreClient, Store):
         )
 
         construct = u"CONSTRUCT { " + _n3(bindings) + u" } WHERE { " 
-        if _context and _context != "local:": construct += u"GRAPH <%s> { " % _context
+        if _context != "local:": construct += u"GRAPH <%s> { " % _context
         construct += _n3(bindings)
-        if _context and _context != "local:": construct += u" }"
+        if _context != "local:": construct += u" }"
         construct += u" }"
 
         result = self.cursor().execute(construct)
         if len(result) > 0:
             delete = u"DELETE { "
-            if _context and _context != "local:": delete += u"GRAPH <%s> { " % _context
-            delete += u" .\n".join(map(_n3, result.triples((None, None, None))))
-            if _context and _context != "local:": delete += u" }"
+            if _context != "local:": delete += u"GRAPH <%s> { " % _context
+            delete += u" .\n".join([_n3(skolemise(x)) for x in result.triples((None, None, None))])
+            if _context != "local:": delete += u" }"
             delete += u" }"
 
             print delete
@@ -96,16 +113,17 @@ class FourStore(FourStoreClient, Store):
     def __contains__(self, statement, context="local:"):
         if isinstance(context, Graph): _context = context.identifier
         else: _context = context
+        s,p,o = skolemise(statement)
         query = u"ASK WHERE { "
-        if _context and _context != "local:": query += u"GRAPH <%s> { " % _context
-        query += u" ".join([x.n3() for x in statement])
-        if _context and _context != "local:": query += u" }"
+        if _context != "local:": query += u"GRAPH <%s> { " % _context
+        query += u" ".join([x.n3() for x in (s,p,o)])
+        if  _context != "local:": query += u" }"
         query += u" }"
         return bool(self.cursor().execute(query))
 
-    def contexts(self, triple=None):
-        if triple is None: triple = (None,None,None)
-        s,p,o = triple
+    def contexts(self, statement=None):
+        if statement is None: statement = (None,None,None)
+        s,p,o = skolemise(statement)
         bindings = (
             s or Variable("s"),
             p or Variable("p"),
@@ -128,7 +146,7 @@ class FourStore(FourStoreClient, Store):
 
         if isinstance(context, Graph): _context = context.identifier
         else: _context = context
-        s,p,o = statement
+        s,p,o = skolemise(statement)
         bindings = (
             s or Variable("s"),
             p or Variable("p"),
@@ -136,9 +154,9 @@ class FourStore(FourStoreClient, Store):
         )
         query = u"SELECT DISTINCT " + u" ".join([x.n3() for x in bindings if isinstance(x, Variable)])
         query += u" WHERE { "
-        if _context and _context != "local:": query += u"GRAPH <%s> { " % _context
+        if _context != "local:": query += u"GRAPH <%s> { " % _context
         query += u" ".join([x.n3() for x in bindings])
-        if _context and _context != "local:": query += u" }"
+        if _context != "local:": query += u" }"
         query += u" }"
         results = self.cursor().execute(query, **kw)
         for row in results:
@@ -148,7 +166,7 @@ class FourStore(FourStoreClient, Store):
                     triple.append(row[b])
                 else:
                     triple.append(b)
-            yield (tuple(triple), context)
+            yield (tuple(deskolemise(triple)), context)
 
 class LazyFourStore(Store):
     def __init__(self, *av, **kw):
