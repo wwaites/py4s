@@ -179,7 +179,11 @@ cdef class _Cursor:
         py4s.fs_import_stream_start(self._link, graph.identifier,
                                     content_type, has_o_index, import_count)
 
-        data = graph.serialize(format="nt")
+        # ensure we have stable bnode identifiers
+        from py4s import SkolemGraph
+        _skg = SkolemGraph(graph)
+
+        data = _skg.serialize(format="nt")
         udata = data
         py4s.fs_import_stream_data(self._link, udata, len(udata))
 

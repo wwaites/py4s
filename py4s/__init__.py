@@ -10,14 +10,12 @@ from _py4s import FourStoreClient, FourStoreError, _n3, log, version
 
 __all__ = ["FourStore", "FourStoreError", "LazyFourStore"]
 
-def skolemise((s,p,o)):
-    if isinstance(s, BNode):
-        s = URIRef("bnode:%s" % s)
-    if isinstance(p, BNode):
-        p = URIRef("bnode:%s" % p)
-    if isinstance(o, BNode):
-        o = URIRef("bnode:%s" % o)
-    return s,p,o
+def skolemise(statement):
+    def _sk(x):
+        if isinstance(x, BNode):
+            return URIRef("bnode:%s" % x)
+        return x
+    return tuple(map(_sk, statement))
 
 def deskolemise(statement):
     def _dst(x):
@@ -25,7 +23,8 @@ def deskolemise(statement):
             _unused, bnid = x.split(":", 1)
             return BNode(bnid)
         return x
-    return map(_dst, statement)
+    return tuple(map(_dst, statement))
+
 
 class FourStore(FourStoreClient, Store):
     context_aware = True
@@ -47,38 +46,34 @@ class FourStore(FourStoreClient, Store):
     def query(self, *av, **kw):
         """Execute a SPARQL Query"""
         return self.cursor().execute(*av, **kw)
-    def add(self, statement, context="local:", **kw):
-        """Add triples to the graph -- very inefficiently"""
+
+    def exists(self, statement, context="local:"):
         if isinstance(context, Graph): context = context.identifier
-        cursor = self.cursor()
+        s,p,o = skolemise(statement)
+        q = u"ASK WHERE { GRAPH <%s> { %s %s %s } }" % (context, s.n3(), p.n3(), o.n3())
+        return bool(self.query(q))
 
-        g = Graph(identifier=context)
-        g.add(statement)
+    def add(self, statement, context="local:", **kw):
+        """Add triples to the graph"""
+        if isinstance(context, Graph): context = context.identifier
 
-        construct = u"CONSTRUCT { ?s ?p ?o } WHERE { "
-        if context != "local:": construct += u"GRAPH <%s> { " % context
-        construct += u"?s ?p ?o"
-        if context != "local:": construct += u" }"
-        construct += u" }"
-        g += cursor.execute(construct)
-
-        cursor.add_graph(g, replace=True)
+        if not self.exists(statement, context):
+            cursor = self.cursor()
+            g = Graph(identifier=context)
+            g.add(skolemise(statement))
+            cursor.add_graph(g, replace=False)
 
     def addN(self, slist, **kw):
-        """Add a list of quads to the graph -- very inefficiently"""
+        """Add a list of quads to the graph"""
         graphs = {}
-        cursor = self.cursor()
         for s,p,o,c in slist:
             if isinstance(c, Graph): c = c.identifier
-            g = graphs.get(c)
-            if g is None:
-                q = u"CONSTRUCT { ?s ?p ?o } WHERE { GRAPH <%s> { ?s ?p ?o } }" % c
-                g = Graph(identifier=c)
-                g += cursor.execute(q)
-                graphs[c] = g
-            g.add((s,p,o))
+            g = graphs.get(c, Graph(identifier=c))
+            if not self.exists((s,p,o), c):
+                g.add(skolemise((s,p,o)))
+        cursor = self.cursor()
         for g in graphs.values():
-            cursor.add_graph(g, replace=True)
+            cursor.add_graph(g, replace=False)
 
     def remove(self, statement, context="local:"):
         """Remove a triple from the graph"""
@@ -110,16 +105,8 @@ class FourStore(FourStoreClient, Store):
 
             self.cursor().update(delete)
 
-    def __contains__(self, statement, context="local:"):
-        if isinstance(context, Graph): _context = context.identifier
-        else: _context = context
-        s,p,o = skolemise(statement)
-        query = u"ASK WHERE { "
-        if _context != "local:": query += u"GRAPH <%s> { " % _context
-        query += u" ".join([x.n3() for x in (s,p,o)])
-        if  _context != "local:": query += u" }"
-        query += u" }"
-        return bool(self.cursor().execute(query))
+    def __contains__(self, *av, **kw):
+        return self.exists(*av, **kw)
 
     def contexts(self, statement=None):
         if statement is None: statement = (None,None,None)
@@ -166,7 +153,7 @@ class FourStore(FourStoreClient, Store):
                     triple.append(row[b])
                 else:
                     triple.append(b)
-            yield (tuple(deskolemise(triple)), context)
+            yield (deskolemise(triple), context)
 
 class LazyFourStore(Store):
     def __init__(self, *av, **kw):
@@ -184,3 +171,10 @@ class LazyFourStore(Store):
 
 register("FourStore", Store, "py4s", "FourStore")
 register("LazyFourStore", Store, "py4s", "LazyFourStore")
+
+class SkolemGraph(Graph):
+    def __init__(self, g):
+        super(SkolemGraph, self).__init__(g.store, identifier=g.identifier)
+    def triples(self, *av, **kw):
+        for statement in super(SkolemGraph, self).triples(*av, **kw):
+            yield skolemise(statement)
