@@ -6,7 +6,7 @@ except ImportError:
     from rdflib import BNode, URIRef, Variable
 from rdflib.store import Store, VALID_STORE, NO_STORE
 from rdflib.plugin import register
-from _py4s import FourStoreClient, FourStoreError, _n3, log, version
+from _py4s import FourStoreClient, FourStoreError, _n3, log, version, _get_context
 
 __all__ = ["FourStore", "FourStoreError", "LazyFourStore"]
 
@@ -47,15 +47,15 @@ class FourStore(FourStoreClient, Store):
         """Execute a SPARQL Query"""
         return self.cursor().execute(*av, **kw)
 
-    def exists(self, statement, context="local:"):
-        if isinstance(context, Graph): context = context.identifier
+    def exists(self, statement, context=None):
+        context = _get_context(context)
         s,p,o = skolemise(statement)
         q = u"ASK WHERE { GRAPH <%s> { %s %s %s } }" % (context, s.n3(), p.n3(), o.n3())
         return bool(self.query(q))
 
-    def add(self, statement, context="local:", **kw):
+    def add(self, statement, context=None, **kw):
         """Add triples to the graph"""
-        if isinstance(context, Graph): context = context.identifier
+        context = _get_context(context)
 
         if not self.exists(statement, context):
             cursor = self.cursor()
@@ -67,7 +67,7 @@ class FourStore(FourStoreClient, Store):
         """Add a list of quads to the graph"""
         graphs = {}
         for s,p,o,c in slist:
-            if isinstance(c, Graph): c = c.identifier
+            c = _get_context(c)
             g = graphs.get(c, Graph(identifier=c))
             if not self.exists((s,p,o), c):
                 g.add(skolemise((s,p,o)))
@@ -75,11 +75,10 @@ class FourStore(FourStoreClient, Store):
         for g in graphs.values():
             cursor.add_graph(g, replace=False)
 
-    def remove(self, statement, context="local:"):
+    def remove(self, statement, context=None):
         """Remove a triple from the graph"""
         log.debug("remove(%s) from %s" % (statement, context))
-        if isinstance(context, Graph): _context = context.identifier
-        else: _context = context
+        _context = _get_context(context)
         s,p,o = skolemise(statement)
         bindings = (
             s or Variable("s"),
@@ -94,11 +93,14 @@ class FourStore(FourStoreClient, Store):
         construct += u" }"
 
         result = self.cursor().execute(construct)
+        _skg = SkolemGraph(result)
+
+        print result.serialize(format="n3")
         if len(result) > 0:
-            delete = u"DELETE { "
-            if _context != "local:": delete += u"GRAPH <%s> { " % _context
-            delete += u" .\n".join([_n3(skolemise(x)) for x in result.triples((None, None, None))])
-            if _context != "local:": delete += u" }"
+            delete = u"DELETE DATA { "
+            if _context != "local:": delete += u"GRAPH <%s> {\n" % _context
+            delete += _skg.serialize(format="nt")
+            if _context != "local:": delete += u"}"
             delete += u" }"
 
             print delete
@@ -122,7 +124,7 @@ class FourStore(FourStoreClient, Store):
         for g, in self.query(query):
             yield Graph(self, identifier=g)
 
-    def triples(self, statement, context="local:", **kw):
+    def triples(self, statement, context=None, **kw):
         """Return triples matching (s,p,o) pattern"""
 
         ## shortcut if we are just checking the existence
@@ -131,8 +133,8 @@ class FourStore(FourStoreClient, Store):
                 yield statement, context
             return
 
-        if isinstance(context, Graph): _context = context.identifier
-        else: _context = context
+        _context = _get_context(context)
+
         s,p,o = skolemise(statement)
         bindings = (
             s or Variable("s"),

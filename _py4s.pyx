@@ -2,10 +2,10 @@ cimport _py4s as py4s
 
 try:
     from rdflib.term import URIRef, Literal, BNode, Identifier, Variable
-    from rdflib.graph import Graph
+    from rdflib.graph import ConjunctiveGraph, Graph
 except ImportError:
     from rdflib import URIRef, Literal, BNode, Identifier, Variable
-    from rdflib.Graph import Graph
+    from rdflib.Graph import ConjunctiveGraph, Graph
 from logging import getLogger
 log = getLogger("py4s")
 
@@ -90,6 +90,14 @@ def _quote_encode(self):
         return '"%s"' % self.replace('\n','\\n').replace('\\', '\\\\'
             ).replace('"', '\\"')
 
+def _get_context(c):
+    if c is None or isinstance(c, ConjunctiveGraph):
+        return "local:"
+    elif isinstance(c, Graph):
+        return c.identifier
+    else:
+        return c
+
 cdef class _Cursor:
     cdef py4s.fsp_link *_link
     cdef py4s.fs_query_state *_qs
@@ -128,7 +136,7 @@ cdef class _Cursor:
             query = u"\n".join(prefixes) + u"\n" + query
         self.warnings = []
 
-        if isinstance(context, Graph): context = context.identifier
+        context = _get_context(context)
 
         # silly hoop for unicode data
         py_uquery = query.encode("utf-8")
@@ -142,8 +150,10 @@ cdef class _Cursor:
 
         # construct and describe queries return a graph
         if py4s.py4s_query_construct(self._qr):
+            from py4s import deskolemise
             g = Graph()
-            map(g.add, results)
+            for statement in results:
+                g.add(deskolemise(statement))
             return g
 
         return results

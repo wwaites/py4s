@@ -76,6 +76,17 @@ class TestClass:
         g = Graph(store, identifier=TEST_GRAPH)
         assert s in g
 
+    def test_18_conjunctive(self):
+        g = ConjunctiveGraph(store)
+        for statement in g.triples((None, None, None)):
+            break
+        assert statement
+
+    def test_19_conjunctive_sparql(self):
+        g = ConjunctiveGraph(store)
+        q = "SELECT DISTINCT * WHERE { ?s ?p ?o } LIMIT 3"
+        assert len(g.query(q).result) == 3
+
     def test_20_remove(self):
         assert store.query("ASK WHERE { ?s ?p ?o }")
         g = ConjunctiveGraph(store)
